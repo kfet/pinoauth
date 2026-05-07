@@ -14,10 +14,10 @@ type testProvider struct {
 func (p *testProvider) ID() string               { return p.id }
 func (p *testProvider) Name() string             { return p.name }
 func (p *testProvider) UsesCallbackServer() bool { return false }
-func (p *testProvider) Login(_ LoginCallbacks) (*Credentials, error) {
+func (p *testProvider) Login(_ context.Context, _ LoginCallbacks) (*Credentials, error) {
 	return &Credentials{Access: "test-token"}, nil
 }
-func (p *testProvider) RefreshToken(creds *Credentials) (*Credentials, error) {
+func (p *testProvider) RefreshToken(_ context.Context, creds *Credentials) (*Credentials, error) {
 	return creds, nil
 }
 func (p *testProvider) GetAPIKey(creds *Credentials) string {
@@ -40,12 +40,20 @@ func TestProviderInterface(t *testing.T) {
 		t.Error("expected UsesCallbackServer() == false")
 	}
 
-	creds, err := p.Login(LoginCallbacks{Ctx: context.Background()})
+	creds, err := p.Login(context.Background(), LoginCallbacks{})
 	if err != nil {
 		t.Fatalf("Login error: %v", err)
 	}
 	if creds.Access != "test-token" {
 		t.Errorf("expected access 'test-token', got %q", creds.Access)
+	}
+
+	refreshed, err := p.RefreshToken(context.Background(), creds)
+	if err != nil {
+		t.Fatalf("RefreshToken error: %v", err)
+	}
+	if refreshed.Access != creds.Access {
+		t.Errorf("RefreshToken changed Access: got %q", refreshed.Access)
 	}
 
 	key := p.GetAPIKey(creds)

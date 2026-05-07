@@ -43,6 +43,9 @@ type AuthInfo struct {
 // LoginCallbacks are UI hooks invoked during a [Provider] login flow.
 // All fields are optional; a nil hook is a no-op (or returns "", nil for
 // input hooks).
+//
+// Cancellation is conveyed via the ctx argument to [Provider.Login], not
+// through this struct.
 type LoginCallbacks struct {
 	// OnAuth is called when the user should visit a URL to authorize.
 	OnAuth func(info AuthInfo)
@@ -55,9 +58,6 @@ type LoginCallbacks struct {
 	// OnDismissManualInput is called when the browser callback succeeds
 	// and any visible manual-input prompt should be hidden.
 	OnDismissManualInput func()
-	// Ctx is used for cancellation. A nil Ctx is treated as
-	// [context.Background].
-	Ctx context.Context
 }
 
 // Provider is the interface that an OAuth login implementation satisfies.
@@ -69,13 +69,15 @@ type Provider interface {
 	ID() string
 	// Name returns a human-readable provider name.
 	Name() string
-	// Login runs the full OAuth login flow and returns credentials to persist.
-	Login(callbacks LoginCallbacks) (*Credentials, error)
+	// Login runs the full OAuth login flow and returns credentials to
+	// persist. Implementations must honour ctx for cancellation.
+	Login(ctx context.Context, callbacks LoginCallbacks) (*Credentials, error)
 	// UsesCallbackServer reports whether Login uses a loopback HTTP
 	// callback server (and thus supports manual-code-input fallback).
 	UsesCallbackServer() bool
 	// RefreshToken exchanges expired credentials for fresh ones.
-	RefreshToken(creds *Credentials) (*Credentials, error)
+	// Implementations must honour ctx for cancellation.
+	RefreshToken(ctx context.Context, creds *Credentials) (*Credentials, error)
 	// GetAPIKey extracts the API key string from credentials, or "" if
 	// the provider does not expose one.
 	GetAPIKey(creds *Credentials) string

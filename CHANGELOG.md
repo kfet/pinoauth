@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Breaking:** `Provider.Login` now takes `(ctx context.Context,
+  callbacks LoginCallbacks)` instead of `(callbacks LoginCallbacks)`,
+  and `Provider.RefreshToken` now takes `(ctx, creds)` instead of just
+  `(creds)`. Context belongs as a method argument, not buried inside
+  the callbacks struct.
+- **Breaking:** removed `LoginCallbacks.Ctx`. Cancellation is now
+  conveyed exclusively via the `ctx` argument to `Provider.Login`.
 - **Breaking:** renamed `StartOAuthCallbackServer` to `StartCallbackServer`
   to remove package-name stutter (`pinoauth.StartCallbackServer`).
 - Errors returned from `GeneratePKCE` and `StartCallbackServer` are now
