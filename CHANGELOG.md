@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `AwaitAuthCode` — orchestrates the "loopback callback OR manual paste,
+  whichever wins" race. Composes `StartCallbackServer`'s result channel
+  with an optional manual-input function (parsed via
+  `ParseAuthorizationInput`), respects `ctx`, and dismisses the loser's
+  visible prompt via an optional callback. Returns `ErrCallbackClosed`
+  (sentinel) when the callback channel closes without delivering.
+
 ### Changed
 
 - **Breaking:** renamed `StartOAuthCallbackServer` to `StartCallbackServer`

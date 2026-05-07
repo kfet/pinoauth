@@ -2,7 +2,7 @@
 // browser-loopback flows (RFC 8252, "OAuth 2.0 for Native Apps") in CLI and
 // desktop applications.
 //
-// It provides the three pieces every native-app PKCE flow needs and
+// It provides the building blocks every native-app PKCE flow needs and
 // nothing else:
 //
 //   - [GeneratePKCE] — RFC 7636 code verifier + S256 challenge.
@@ -11,6 +11,8 @@
 //     or error page, and delivers the result on a channel.
 //   - [ParseAuthorizationInput] — robust parser for codes the user pastes
 //     manually (full URLs, code#state, query strings, or bare codes).
+//   - [AwaitAuthCode] — races the loopback callback against an optional
+//     manual-paste prompt; the first arrival wins.
 //
 // The [Provider] interface is a convention for assembling these pieces
 // into provider-specific login flows; pinoauth itself ships no concrete
