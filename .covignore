@@ -3,8 +3,8 @@
 # Lines beginning with # are no-op patterns (no '#' chars in coverage output).
 # Keep tight: exclude only specific unreachable stdlib error branches.
 #
-# pkce.go:20 — crypto/rand.Read failure path (unreachable in practice).
-pkce\.go:20\.
-# callback_server.go:101-102 — http.Server.Serve returning a non-
+# pkce.go:30 — crypto/rand.Read failure path (unreachable in practice).
+pkce\.go:30\.
+# callback_server.go:127-128 — http.Server.Serve returning a non-
 # ErrServerClosed error after a successful net.Listen.
-callback_server\.go:10[12]\.
+callback_server\.go:12[78]\.

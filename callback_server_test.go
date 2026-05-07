@@ -10,13 +10,13 @@ import (
 	"time"
 )
 
-func TestStartOAuthCallbackServer_SuccessfulAuth(t *testing.T) {
+func TestStartCallbackServer_SuccessfulAuth(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	srv, resultCh, actualAddr, err := StartOAuthCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
+	srv, resultCh, actualAddr, err := StartCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
 	if err != nil {
-		t.Fatalf("StartOAuthCallbackServer error: %v", err)
+		t.Fatalf("StartCallbackServer error: %v", err)
 	}
 	defer srv.Close()
 
@@ -51,14 +51,14 @@ func TestStartOAuthCallbackServer_SuccessfulAuth(t *testing.T) {
 	}
 }
 
-func TestStartOAuthCallbackServer_StateValidation(t *testing.T) {
+func TestStartCallbackServer_StateValidation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	expectedState := "correct-state"
-	srv, resultCh, actualAddr, err := StartOAuthCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", expectedState)
+	srv, resultCh, actualAddr, err := StartCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", expectedState)
 	if err != nil {
-		t.Fatalf("StartOAuthCallbackServer error: %v", err)
+		t.Fatalf("StartCallbackServer error: %v", err)
 	}
 	defer srv.Close()
 
@@ -102,13 +102,13 @@ func TestStartOAuthCallbackServer_StateValidation(t *testing.T) {
 	}
 }
 
-func TestStartOAuthCallbackServer_ErrorParam(t *testing.T) {
+func TestStartCallbackServer_ErrorParam(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	srv, _, actualAddr, err := StartOAuthCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
+	srv, _, actualAddr, err := StartCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
 	if err != nil {
-		t.Fatalf("StartOAuthCallbackServer error: %v", err)
+		t.Fatalf("StartCallbackServer error: %v", err)
 	}
 	defer srv.Close()
 
@@ -131,13 +131,13 @@ func TestStartOAuthCallbackServer_ErrorParam(t *testing.T) {
 	}
 }
 
-func TestStartOAuthCallbackServer_ErrorParamXSSEscaped(t *testing.T) {
+func TestStartCallbackServer_ErrorParamXSSEscaped(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	srv, _, actualAddr, err := StartOAuthCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
+	srv, _, actualAddr, err := StartCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
 	if err != nil {
-		t.Fatalf("StartOAuthCallbackServer error: %v", err)
+		t.Fatalf("StartCallbackServer error: %v", err)
 	}
 	defer srv.Close()
 
@@ -158,13 +158,13 @@ func TestStartOAuthCallbackServer_ErrorParamXSSEscaped(t *testing.T) {
 	}
 }
 
-func TestStartOAuthCallbackServer_MissingCode(t *testing.T) {
+func TestStartCallbackServer_MissingCode(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	srv, _, actualAddr, err := StartOAuthCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
+	srv, _, actualAddr, err := StartCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
 	if err != nil {
-		t.Fatalf("StartOAuthCallbackServer error: %v", err)
+		t.Fatalf("StartCallbackServer error: %v", err)
 	}
 	defer srv.Close()
 
@@ -184,23 +184,23 @@ func TestStartOAuthCallbackServer_MissingCode(t *testing.T) {
 	}
 }
 
-func TestStartOAuthCallbackServer_ListenError(t *testing.T) {
+func TestStartCallbackServer_ListenError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Bogus address: port out of range forces net.Listen to fail.
-	_, _, _, err := StartOAuthCallbackServer(ctx, "/oauth-callback", "127.0.0.1:999999", "")
+	_, _, _, err := StartCallbackServer(ctx, "/oauth-callback", "127.0.0.1:999999", "")
 	if err == nil {
 		t.Fatal("expected error from invalid listen address, got nil")
 	}
 }
 
-func TestStartOAuthCallbackServer_ContextCancellation(t *testing.T) {
+func TestStartCallbackServer_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	srv, resultCh, _, err := StartOAuthCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
+	srv, resultCh, _, err := StartCallbackServer(ctx, "/oauth-callback", "127.0.0.1:0", "")
 	if err != nil {
-		t.Fatalf("StartOAuthCallbackServer error: %v", err)
+		t.Fatalf("StartCallbackServer error: %v", err)
 	}
 	_ = srv
 

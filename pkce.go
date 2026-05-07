@@ -4,25 +4,34 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 )
 
-// PKCEChallenge holds a PKCE code verifier and its SHA-256 challenge.
+// PKCEChallenge holds an RFC 7636 PKCE code verifier and its derived
+// SHA-256 challenge. The zero value is not useful — obtain values via
+// [GeneratePKCE].
 type PKCEChallenge struct {
-	Verifier  string
+	// Verifier is the high-entropy code verifier (RFC 7636 §4.1),
+	// base64url-encoded with no padding. Send to the token endpoint
+	// during the code exchange.
+	Verifier string
+	// Challenge is BASE64URL(SHA256(Verifier)) (RFC 7636 §4.2). Send
+	// to the authorization endpoint as code_challenge with
+	// code_challenge_method=S256.
 	Challenge string
 }
 
-// GeneratePKCE generates a PKCE code verifier (32 random bytes, base64url-encoded)
-// and its corresponding SHA-256 challenge.
+// GeneratePKCE returns a fresh PKCE pair: a 32-byte cryptographically
+// random verifier (base64url-encoded, no padding) and its S256 challenge.
+//
+// Callers should generate a new pair per authorization request.
 func GeneratePKCE() (*PKCEChallenge, error) {
-	// Generate 32 random bytes for the verifier
 	verifierBytes := make([]byte, 32)
 	if _, err := rand.Read(verifierBytes); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pinoauth: read random bytes: %w", err)
 	}
 	verifier := base64URLEncode(verifierBytes)
 
-	// Compute SHA-256 of the verifier string
 	hash := sha256.Sum256([]byte(verifier))
 	challenge := base64URLEncode(hash[:])
 

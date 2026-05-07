@@ -24,8 +24,7 @@ to this repo. They belong in the consumer's codebase.
   and ask first.
 - **Go 1.21+.** Don't use language features newer than that without a real
   need; bumping the minimum cuts users.
-- **No global state.** No `init()` registries. No package-level mutables
-  beyond the existing `oauthHTTPClient` (which exists so tests can swap it).
+- **No global state.** No `init()` registries. No package-level mutables.
 - **Tests use real HTTP**, not mocks — `httptest.Server` is fine.
 
 ## Workflow

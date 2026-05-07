@@ -5,6 +5,14 @@ import (
 	"testing"
 )
 
+func TestRenderAuthPage_PlaceholdersInTemplate(t *testing.T) {
+	for _, ph := range allPlaceholders {
+		if !strings.Contains(callbackPageHTML, ph) {
+			t.Errorf("callback_page.html missing placeholder %q (declared in allPlaceholders)", ph)
+		}
+	}
+}
+
 func TestRenderAuthPage_BasicRendering(t *testing.T) {
 	result := renderAuthPage("Test Title", "✓", "Test Heading", "Test message")
 

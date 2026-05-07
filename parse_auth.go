@@ -5,13 +5,17 @@ import (
 	"strings"
 )
 
-// ParseAuthorizationInput extracts code and state from various input formats:
-//   - full callback URL (state is taken from the query string)
-//   - code#state (the OpenAI-style "manual entry" form)
-//   - query-string fragment containing code=…&state=…
-//   - a bare code (state empty)
+// ParseAuthorizationInput extracts the authorization code and state from
+// whatever the user pastes back from a browser. It accepts:
+//
+//   - a full callback URL (state is read from the query string);
+//   - the "code#state" form (used by some providers' manual-entry pages);
+//   - a bare query-string fragment containing code=…&state=…;
+//   - a bare authorization code (state will be empty).
 //
 // Common shell-escape backslashes pasted from terminal output are stripped.
+// ParseAuthorizationInput does no validation beyond extraction; callers
+// must compare state against their expected value.
 func ParseAuthorizationInput(input string) (code, state string) {
 	value := strings.TrimSpace(input)
 	if value == "" {

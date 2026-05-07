@@ -7,8 +7,8 @@ default: test-fast
 
 all: default
 
-# check runs the static gates (gofmt + go vet).
-check: fmtcheck vet
+# check runs the static gates (gofmt + go vet + staticcheck if installed).
+check: fmtcheck vet staticcheck
 
 # fmt rewrites all Go files to canonical gofmt style.
 fmt:
@@ -27,6 +27,23 @@ fmtcheck:
 vet:
 	@go vet ./...
 	@echo "✓ go vet clean"
+
+# staticcheck is run when honnef.co/go/tools' staticcheck is on PATH.
+# It is not a hard build dep — install with:
+#   go install honnef.co/go/tools/cmd/staticcheck@latest
+.PHONY: staticcheck
+staticcheck:
+	@if command -v staticcheck >/dev/null 2>&1; then \
+		out="$$(staticcheck ./... 2>&1 | grep -v 'file requires newer Go version' || true)"; \
+		if [ -n "$$out" ]; then \
+			echo "$$out"; \
+			echo "ERROR: staticcheck reported findings"; \
+			exit 1; \
+		fi; \
+		echo "✓ staticcheck clean"; \
+	else \
+		echo "(staticcheck not installed — skipping; install with 'go install honnef.co/go/tools/cmd/staticcheck@latest')"; \
+	fi
 
 # Run unit tests with 100% coverage gate (excluding paths in .covignore).
 # Usage: make run-tests TEST_FLAGS="-race -shuffle=on"

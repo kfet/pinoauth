@@ -20,7 +20,7 @@ The three pieces every native-app PKCE flow needs, and nothing else:
 
 - **PKCE** — `GeneratePKCE()` returns a 32-byte random verifier and its
   base64url-encoded SHA-256 challenge.
-- **Loopback callback server** — `StartOAuthCallbackServer()` binds a port
+- **Loopback callback server** — `StartCallbackServer()` binds a port
   on `127.0.0.1`, listens for the redirect, validates the `state`
   parameter, renders a styled HTML success/error page, and delivers
   `{Code, State}` on a channel.
@@ -66,7 +66,7 @@ func main() {
 
     // 2. Spin up the loopback callback server.
     state := "random-state-token"  // bring your own RNG
-    srv, resultCh, addr, err := pinoauth.StartOAuthCallbackServer(
+    srv, resultCh, addr, err := pinoauth.StartCallbackServer(
         ctx, "/callback", "127.0.0.1:0", state,
     )
     if err != nil { panic(err) }

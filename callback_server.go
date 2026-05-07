@@ -1,4 +1,3 @@
-// Shared OAuth callback server used by multiple OAuth providers.
 package pinoauth
 
 import (
@@ -24,7 +23,8 @@ const (
 )
 
 // allPlaceholders is the complete set of tokens that renderAuthPage replaces.
-// Tests verify this stays in sync with the HTML template.
+// A test asserts every placeholder appears in the embedded HTML so the two
+// stay in sync.
 var allPlaceholders = []string{phTitle, phIcon, phHeading, phMessage}
 
 // renderAuthPage renders the callback page with the given content.
@@ -40,20 +40,46 @@ func renderAuthPage(title, icon, heading, message string) string {
 	return r.Replace(callbackPageHTML)
 }
 
-// CallbackResult holds the result from the OAuth callback server.
+// CallbackResult is the authorization data delivered by the loopback server
+// after a successful redirect.
 type CallbackResult struct {
-	Code  string
+	// Code is the OAuth 2.0 authorization code (RFC 6749 §4.1.2).
+	Code string
+	// State is the state value echoed back by the authorization server.
+	// When [StartCallbackServer] is called with a non-empty expectedState,
+	// State is guaranteed to equal it.
 	State string
 }
 
-// StartOAuthCallbackServer starts a local HTTP server to receive an OAuth callback.
-// route is the path to listen on (e.g., "/oauth-callback").
-// addr is the listener address (e.g., "127.0.0.1:51121").
-// expectedState, if non-empty, is validated server-side: requests with a
-// mismatched state parameter receive a 400 response and are not forwarded.
-// Returns the server, a channel for the result, and the actual listener address
-// (which may differ from addr if port 0 was used).
-func StartOAuthCallbackServer(ctx context.Context, route, addr, expectedState string) (server *http.Server, resultCh <-chan *CallbackResult, actualAddr string, err error) {
+// StartCallbackServer starts a loopback HTTP server to receive an OAuth 2.0
+// authorization-code redirect (RFC 8252 §7.3).
+//
+// route is the path to listen on (e.g. "/oauth-callback"). addr is the
+// listener address (e.g. "127.0.0.1:0" to pick a free port). expectedState,
+// if non-empty, is validated server-side: requests with a mismatched state
+// receive HTTP 400 and are not delivered on the result channel.
+//
+// On success it returns the running [http.Server], a receive-only channel
+// carrying at most one [CallbackResult], and the resolved listener address
+// (which differs from addr when port 0 was requested).
+//
+// Lifecycle:
+//
+//   - The result channel is buffered (capacity 1). A successful callback
+//     sends exactly one *CallbackResult and the channel is left open;
+//     subsequent callbacks are not delivered.
+//   - When ctx is cancelled the server is closed and the channel is closed
+//     (a closed channel yields a nil *CallbackResult, distinguishable from
+//     a real result).
+//   - If the underlying [http.Server.Serve] fails for any reason other than
+//     [http.ErrServerClosed], the channel is closed.
+//   - Callers should still defer srv.Close() (or srv.Shutdown) to release
+//     the listener if they exit before ctx is cancelled.
+//
+// The returned server and channel are safe for concurrent use; the channel
+// has a single producer (the request handler goroutine) and any number of
+// receivers.
+func StartCallbackServer(ctx context.Context, route, addr, expectedState string) (server *http.Server, resultCh <-chan *CallbackResult, actualAddr string, err error) {
 	ch := make(chan *CallbackResult, 1)
 	var once sync.Once
 
@@ -92,7 +118,7 @@ func StartOAuthCallbackServer(ctx context.Context, route, addr, expectedState st
 
 	ln, listenErr := net.Listen("tcp", addr)
 	if listenErr != nil {
-		return nil, nil, "", fmt.Errorf("starting callback server on %s: %w", addr, listenErr)
+		return nil, nil, "", fmt.Errorf("pinoauth: listen on %s: %w", addr, listenErr)
 	}
 
 	resolvedAddr := ln.Addr().String()
