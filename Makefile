@@ -46,24 +46,13 @@ staticcheck:
 # Run unit tests with the 100% coverage gate (excluding patterns in .covignore).
 # Usage: make run-tests TEST_FLAGS="-race -shuffle=on"
 run-tests: check
-	@set -e; \
-	tmpfile=$$(mktemp); patfile=$$(mktemp); \
-	trap 'rm -f $$tmpfile $$patfile' EXIT; \
+	@tmpfile=$$(mktemp); \
+	trap 'rm -f $$tmpfile' EXIT; \
 	if ! go test -cover $(TEST_FLAGS) ./... -coverprofile=coverage.tmp.out > $$tmpfile 2>&1; then \
 		cat $$tmpfile; exit 1; \
-	fi; \
-	grep -v -E '^[[:space:]]*(#|$$)' .covignore > $$patfile || true; \
-	if [ -s $$patfile ]; then \
-		grep -v -E -f $$patfile coverage.tmp.out > coverage.out; \
-	else \
-		cp coverage.tmp.out coverage.out; \
-	fi; \
-	if go tool cover -func=coverage.out | tail -1 | grep -v '100.0%'; then \
-		echo "ERROR: coverage is not 100% — see coverage.out (make open_coverage)"; \
-		go tool cover -func=coverage.out | grep -v '100.0%' || true; \
-		exit 1; \
-	fi; \
-	echo "✓ coverage 100% (excluding .covignore)"
+	fi
+	@go run github.com/kfet/covgate/cmd/covgate@v0.1.0 \
+		-profile=coverage.tmp.out -out=coverage.out -ignore=.covignore -min=100
 
 open_coverage:
 	go tool cover -html=coverage.out
