@@ -4,3 +4,4 @@ coverage.tmp.out
 *.test
 *.out
 .DS_Store
+/.fir/

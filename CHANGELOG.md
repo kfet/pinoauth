@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- `make all` (and `make test`) now enforce a 100% coverage gate via
+  `.covignore`, mirroring the mechanism used in sibling repos
+  (firpty, skipstone). Adds `gofmt -l` + `go vet` checks. New targets:
+  `check`, `fmt`, `fmtcheck`, `test-fast`, `open_coverage`.
+
 ## [0.1.0] - 2026-05-06
 
 ### Added

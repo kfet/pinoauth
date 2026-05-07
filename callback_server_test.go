@@ -184,6 +184,17 @@ func TestStartOAuthCallbackServer_MissingCode(t *testing.T) {
 	}
 }
 
+func TestStartOAuthCallbackServer_ListenError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Bogus address: port out of range forces net.Listen to fail.
+	_, _, _, err := StartOAuthCallbackServer(ctx, "/oauth-callback", "127.0.0.1:999999", "")
+	if err == nil {
+		t.Fatal("expected error from invalid listen address, got nil")
+	}
+}
+
 func TestStartOAuthCallbackServer_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
