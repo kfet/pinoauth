@@ -72,7 +72,9 @@ type CallbackResult struct {
 //     (a closed channel yields a nil *CallbackResult, distinguishable from
 //     a real result).
 //   - If the underlying [http.Server.Serve] fails for any reason other than
-//     [http.ErrServerClosed], the channel is closed.
+//     [http.ErrServerClosed] — which should not happen for a healthy
+//     loopback listener owned by this package — the server goroutine
+//     panics rather than silently closing the channel.
 //   - Callers should still defer srv.Close() (or srv.Shutdown) to release
 //     the listener if they exit before ctx is cancelled.
 //
@@ -123,11 +125,7 @@ func StartCallbackServer(ctx context.Context, route, addr, expectedState string)
 
 	resolvedAddr := ln.Addr().String()
 
-	go func() {
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			once.Do(func() { close(ch) })
-		}
-	}()
+	go func() { serveLoopback(srv, ln) }()
 
 	go func() {
 		<-ctx.Done()

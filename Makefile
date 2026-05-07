@@ -55,7 +55,14 @@ run-tests: check
 		cat $$tmpfile; \
 		exit 1; \
 	fi
-	@grep -v -E -f .covignore coverage.tmp.out > coverage.out
+	@patfile=$$(mktemp); \
+	trap 'rm -f $$patfile' EXIT; \
+	grep -v -E '^[[:space:]]*(#|$$)' .covignore > $$patfile; \
+	if [ -s $$patfile ]; then \
+		grep -v -E -f $$patfile coverage.tmp.out > coverage.out; \
+	else \
+		cp coverage.tmp.out coverage.out; \
+	fi
 	@if go tool cover -func=coverage.out | tail -1 | grep -v '100.0%'; then \
 		echo "ERROR: coverage is not 100% — see coverage.out (make open_coverage)"; \
 		go tool cover -func=coverage.out | grep -v '100.0%' || true; \

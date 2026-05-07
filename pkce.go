@@ -1,10 +1,8 @@
 package pinoauth
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 )
 
 // PKCEChallenge holds an RFC 7636 PKCE code verifier and its derived
@@ -27,9 +25,7 @@ type PKCEChallenge struct {
 // Callers should generate a new pair per authorization request.
 func GeneratePKCE() (*PKCEChallenge, error) {
 	verifierBytes := make([]byte, 32)
-	if _, err := rand.Read(verifierBytes); err != nil {
-		return nil, fmt.Errorf("pinoauth: read random bytes: %w", err)
-	}
+	mustReadRandom(verifierBytes)
 	verifier := base64URLEncode(verifierBytes)
 
 	hash := sha256.Sum256([]byte(verifier))

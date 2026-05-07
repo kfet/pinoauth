@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Migrated `.covignore` to file-level patterns only (`unreachable.go`
+  and `cmd/*/main.go`). Structurally-unreachable defensive code now
+  lives in `unreachable.go` and panics on the impossible branch
+  rather than returning an error, so callers have no dead `if err
+  != nil` branch to cover. `GeneratePKCE` and `StartCallbackServer`
+  internally route their unreachable error paths through this file;
+  their public signatures are unchanged. The `Makefile` coverage
+  rule now strips comments and blank lines from `.covignore` before
+  feeding it to `grep -E`.
+
 ### Added
 
 - `AwaitAuthCode` — orchestrates the "loopback callback OR manual paste,
