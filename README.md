@@ -16,7 +16,7 @@ Gemini CLI, and others.
 
 ## What it is
 
-The three pieces every native-app PKCE flow needs, and nothing else:
+The pieces every native-app PKCE flow needs, and nothing else:
 
 - **PKCE** — `GeneratePKCE()` returns a 32-byte random verifier and its
   base64url-encoded SHA-256 challenge.
@@ -28,6 +28,10 @@ The three pieces every native-app PKCE flow needs, and nothing else:
   `code` and `state` from whatever the user pastes back from the browser:
   a full callback URL, `code#state` (the OpenAI-style "manual entry"
   form), a `code=…&state=…` query fragment, or a bare code.
+- **Callback / paste race** — `AwaitAuthCode()` waits for either the
+  loopback callback or a manual paste, whichever arrives first.
+  Composes the three primitives above into the SSH-friendly fallback
+  every native-app OAuth flow needs in practice.
 
 Plus a `Provider` interface that's a convention for assembling these into
 a provider-specific login flow. `pinoauth` ships **no concrete providers** —
