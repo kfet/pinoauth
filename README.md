@@ -32,6 +32,14 @@ The pieces every native-app PKCE flow needs, and nothing else:
   loopback callback or a manual paste, whichever arrives first.
   Composes the three primitives above into the SSH-friendly fallback
   every native-app OAuth flow needs in practice.
+- **Token endpoint** — `ExchangeCode()` and `Refresh()` POST
+  `grant_type=authorization_code` / `grant_type=refresh_token` to a
+  provider's token endpoint, parse the JSON response into a `Token`
+  (with `ExpiresAt` computed at receive time), and surface
+  RFC 6749 §5.2 errors as `*TokenError`. Stateless: no auto-refresh,
+  no goroutines, no storage. The provider-specific fields a non-trivial
+  flow needs (`id_token`, account IDs, even non-standard top-level
+  shapes) are preserved verbatim in `Token.Raw`.
 
 Plus a `Provider` interface that's a convention for assembling these into
 a provider-specific login flow. `pinoauth` ships **no concrete providers** —
@@ -42,6 +50,10 @@ those live in your code.
 - Not a full OAuth client/server framework.
 - Not a token store. Persistence is your problem.
 - Not for browser-based / SPA / confidential-client flows. Loopback only.
+- **No `TokenSource`, no auto-refreshing `http.Client`, no background
+  goroutines.** `Token` is a plain value; the caller decides when to
+  refresh (`Token.ExpiresWithin(5*time.Minute)`) and where to store
+  the result.
 
 ## Install
 

@@ -125,7 +125,7 @@ func StartCallbackServer(ctx context.Context, route, addr, expectedState string)
 
 	resolvedAddr := ln.Addr().String()
 
-	go func() { serveLoopback(srv, ln) }()
+	go func() { mustServeLoopback(srv, ln) }()
 
 	go func() {
 		<-ctx.Done()

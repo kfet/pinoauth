@@ -4,29 +4,78 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed
+### Security
 
-- Migrated `.covignore` to file-level patterns only (`unreachable.go`
-  and `cmd/*/main.go`). Structurally-unreachable defensive code now
-  lives in `unreachable.go` and panics on the impossible branch
-  rather than returning an error, so callers have no dead `if err
-  != nil` branch to cover. `GeneratePKCE` and `StartCallbackServer`
-  internally route their unreachable error paths through this file;
-  their public signatures are unchanged. The `Makefile` coverage
-  rule now strips comments and blank lines from `.covignore` before
-  feeding it to `grep -E`.
+- Default `*http.Client` used by `ExchangeCode`/`Refresh` now refuses
+  to follow redirects on the token endpoint POST. A 30x response would
+  otherwise re-POST the body (which carries `client_secret`,
+  `refresh_token`, `code_verifier`) to the redirect target. Token
+  endpoints do not redirect in practice; we fail closed.
+- Token endpoint response bodies are now read through a 1 MiB
+  `io.LimitReader` cap. A hostile or misconfigured server can no
+  longer force unbounded buffering.
+- `expires_in` from the token response is clamped to ~68 years before
+  the `time.Duration` math runs. A hostile server returning e.g.
+  `1e18` previously overflowed the multiplication and produced a
+  past-dated `ExpiresAt`, making `Token.Expired()` return true
+  immediately and potentially driving a refresh loop.
+- Caller-supplied `Content-Type` in `Headers` is now dropped — it
+  belongs to the `BodyEncoder` and was previously *added* alongside
+  the encoder's value, yielding two conflicting headers.
+- Token-endpoint URL parse failures now surface as `*TokenError`
+  rather than panicking, so callers piping config/env-supplied values
+  into `TokenURL` get a normal error path.
+- `TokenError.Body` doc now warns that on a malformed 2xx response it
+  may carry `access_token`/`refresh_token` material and must not be
+  logged verbatim. `TokenError.Error()` itself never prints `Body`.
 
 ### Added
 
+- **Stateless token primitives** for the standard token endpoint dance
+  (RFC 6749 §4.1.3 + §6), so callers can collapse the boilerplate
+  around `grant_type=authorization_code` and `grant_type=refresh_token`
+  back into a few lines:
+    - `Token` — parsed token response: `AccessToken`, `TokenType`,
+      `RefreshToken`, `ExpiresAt` (computed from `expires_in` at receive
+      time), `Scope`, plus `Raw map[string]any` preserving every
+      top-level field for provider-specific extraction (id_token,
+      account_id, api_key, …). Helpers `Expired()` and
+      `ExpiresWithin(d)`.
+    - `ExchangeCode(ctx, ExchangeParams) (*Token, error)` — POSTs
+      `authorization_code` to a token endpoint, parses JSON, returns
+      `Token`.
+    - `Refresh(ctx, RefreshParams) (*Token, error)` — same shape for
+      `refresh_token`.
+    - `BodyEncoder` hook — defaults to RFC-standard form encoding.
+      Pass `JSONBodyEncoder` for the small set of providers (Anthropic)
+      that send JSON to the token endpoint.
+    - `TokenError` — typed error matching RFC 6749 §5.2
+      (`Code`, `Description`, `URI`, `HTTPStatus`, `Body`, `Err`),
+      reachable via `errors.As`. Wraps transport errors via `Unwrap`.
+- **Honest non-goals**: no `TokenSource` / auto-refreshing
+  `http.Client` / background goroutines / token storage. The caller
+  decides when to refresh and where to persist. See `doc.go`.
 - `AwaitAuthCode` — orchestrates the "loopback callback OR manual paste,
   whichever wins" race. Composes `StartCallbackServer`'s result channel
   with an optional manual-input function (parsed via
   `ParseAuthorizationInput`), respects `ctx`, and dismisses the loser's
   visible prompt via an optional callback. Returns `ErrCallbackClosed`
   (sentinel) when the callback channel closes without delivering.
+- `ExampleStartCallbackServer` — testable example exercising the headline
+  API (visible on pkg.go.dev).
+- Sync test asserting every placeholder constant appears in the embedded
+  `callback_page.html`.
 
 ### Changed
 
+- Replaced the legacy `unreachable.go` convention with a per-feature
+  `<feature>_must.go` model. Each `mustX` helper now sits next to the
+  code that uses it: `pkce_must.go` (`mustReadRandom`) and
+  `callback_server_must.go` (`mustServeLoopback`). Helpers panic on
+  structurally-unreachable error paths so callers have no impossible
+  branch left to cover. `.covignore` now excludes `_must\.go:` instead
+  of `/unreachable\.go:`. The `Makefile` coverage rule strips comments
+  and blank lines from `.covignore` before feeding it to `grep -E`.
 - **Breaking:** `Provider.Login` now takes `(ctx context.Context,
   callbacks LoginCallbacks)` instead of `(callbacks LoginCallbacks)`,
   and `Provider.RefreshToken` now takes `(ctx, creds)` instead of just
@@ -43,13 +92,6 @@ All notable changes to this project will be documented in this file.
   documents its goroutine / lifecycle / channel-close contract.
 - `make check` now runs `staticcheck ./...` when the tool is on `PATH`
   (skipped otherwise — staticcheck is not a hard build dep).
-
-### Added
-
-- `ExampleStartCallbackServer` — testable example exercising the headline
-  API (visible on pkg.go.dev).
-- Sync test asserting every placeholder constant appears in the embedded
-  `callback_page.html`.
 
 ### Removed
 

@@ -10,7 +10,12 @@
 # pinoauth currently ships none).
 ^github.com/kfet/pinoauth/cmd/[^/]+/main\.go:
 
-# Per-package "unreachable.go" files (legacy — prefer excluding the
-# file the code naturally lives in, or restructure to remove the
-# unreachable branch entirely; see covgate README).
-/unreachable\.go:
+# Per-feature `<feature>_must.go` files. Each holds the `mustX` helpers
+# for the feature in `<feature>.go`: tiny wrappers that panic on
+# structurally-unreachable error paths (kernel CSPRNG failure, Serve
+# on a private listener, http.NewRequestWithContext on a validated
+# URL, …). Keeping them in a sibling file means the helper sits next
+# to the code that uses it, the name signals intent (`mustReadRandom`,
+# `mustServeLoopback`), and the file-level coverage exclusion stays
+# narrow and meaningful.
+_must\.go:
