@@ -8,6 +8,23 @@ All notable changes to this project will be documented in this file.
 
 ### Changed (breaking)
 
+- **Token-endpoint API moved onto a `Client` struct.** The standalone
+  `ExchangeCode` and `Refresh` functions are gone, replaced by:
+    - `Client` — holds the per-provider config that doesn't change
+      between requests: `TokenURL`, `ClientID`, `ClientSecret`,
+      `HTTPClient`, `BodyEncoder`, `Headers`.
+    - `Client.Exchange(ctx, ExchangeRequest)` / `Client.Refresh(ctx,
+      RefreshRequest)` — methods take a small per-call request struct
+      with just the grant-specific fields (`Code/CodeVerifier/
+      RedirectURI/Extra` for exchange; `RefreshToken/Scope/Extra` for
+      refresh).
+    - `TokenClient` — interface satisfied by `*Client`, exposing
+      `Exchange` and `Refresh`. Useful for testing and for callers
+      that want to wrap or swap the implementation.
+  Migration: collapse the previous `ExchangeParams`/`RefreshParams`
+  literals into a `Client{}` (set once, reuse for refresh) and a small
+  `ExchangeRequest{}`/`RefreshRequest{}` per call. The seven common
+  config fields no longer have to be repeated on every refresh.
 - **`Provider` slimmed.** Removed `GetAPIKey`, `ListModels`, and the
   `Credentials` round-trip. The interface now exposes just
   `ID/Name/Login/RefreshToken/UsesCallbackServer` and traffics in
@@ -30,9 +47,13 @@ All notable changes to this project will be documented in this file.
 - `GenerateState()` — 32-byte random base64url value for the OAuth
   `state` parameter (RFC 6749 §10.12). Closes the "bring your own RNG"
   footgun in the README quick-start.
-- GitHub Actions CI workflow: `go vet`, `go test -race -shuffle=on`,
-  `staticcheck`, `gofmt -l` across Go 1.21/1.22/1.23 on
-  linux/macos/windows.
+- GitHub Actions CI workflow that runs `make all` across Go
+  1.21/1.22/1.23 on linux/macos/windows. `make all` is now the single
+  source of truth for the strict pass: race detector, shuffled order,
+  fresh test cache, gofmt, go vet, staticcheck, and the 100% coverage
+  gate. The previously separate `make test` target is gone — there is
+  no "fast" mode in the Makefile any more (run `go test ./...` directly
+  if you want to iterate).
 
 ### Added (earlier in this cycle)
 

@@ -33,14 +33,14 @@ The pieces every native-app PKCE flow needs, and nothing else:
   loopback callback or a manual paste, whichever arrives first.
   Composes the three primitives above into the SSH-friendly fallback
   every native-app OAuth flow needs in practice.
-- **Token endpoint** — `ExchangeCode()` and `Refresh()` POST
-  `grant_type=authorization_code` / `grant_type=refresh_token` to a
-  provider's token endpoint, parse the JSON response into a `Token`
-  (with `ExpiresAt` computed at receive time), and surface
-  RFC 6749 §5.2 errors as `*TokenError`. Stateless: no auto-refresh,
-  no goroutines, no storage. The provider-specific fields a non-trivial
-  flow needs (`id_token`, account IDs, even non-standard top-level
-  shapes) are preserved verbatim in `Token.Raw`.
+- **Token endpoint** — `Client` is a configured token-endpoint client with
+  `Exchange` (authorization-code grant) and `Refresh` (refresh-token grant)
+  methods. Both return a parsed `Token` (with `ExpiresAt` computed at
+  receive time) and surface RFC 6749 §5.2 errors as `*TokenError`.
+  Stateless: no auto-refresh, no goroutines, no storage. The provider-
+  specific fields a non-trivial flow needs (`id_token`, account IDs,
+  even non-standard top-level shapes) are preserved verbatim in
+  `Token.Raw`. The `TokenClient` interface lets callers swap in fakes.
 
 Plus a `Provider` interface that's a convention for assembling these into
 a provider-specific login flow. `pinoauth` ships **no concrete providers** —
@@ -106,8 +106,15 @@ func main() {
     res := <-resultCh
     fmt.Printf("Got code=%s state=%s\n", res.Code, res.State)
 
-    // 5. Exchange res.Code + pkce.Verifier for tokens at the provider's
-    //    /token endpoint. (That part is provider-specific — your code.)
+    // 5. Exchange res.Code + pkce.Verifier for tokens via Client.
+    //    Reuse the same Client later for Refresh.
+    //
+    //    client := &pinoauth.Client{TokenURL: "...", ClientID: "..."}
+    //    tok, err := client.Exchange(ctx, pinoauth.ExchangeRequest{
+    //        Code:         res.Code,
+    //        CodeVerifier: pkce.Verifier,
+    //        RedirectURI:  redirect,
+    //    })
 }
 ```
 
