@@ -4,7 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-09
+
+### Changed (breaking)
+
+- **`Provider` slimmed.** Removed `GetAPIKey`, `ListModels`, and the
+  `Credentials` round-trip. The interface now exposes just
+  `ID/Name/Login/RefreshToken/UsesCallbackServer` and traffics in
+  `*Token` directly. API-key extraction, model listing, and other
+  provider-specific concerns belong on the concrete type, not the
+  shared shape — pinoauth is an OAuth toolkit, not an LLM-provider
+  framework.
+- **Removed `Credentials`.** Use `*Token` (which already carries
+  `AccessToken`, `RefreshToken`, `ExpiresAt`, and `Raw` for everything
+  provider-specific). The two types were redundant; `Token` is the
+  better-designed of the two and the only one the token primitives
+  actually used.
+- **`GeneratePKCE` no longer returns an error.** It panics only on
+  kernel CSPRNG failure (consistent with the rest of the `must*`
+  doctrine) — the previous `error` return was always nil. Callers
+  should drop the `, err :=` and any nil check.
+
 ### Added
+
+- `GenerateState()` — 32-byte random base64url value for the OAuth
+  `state` parameter (RFC 6749 §10.12). Closes the "bring your own RNG"
+  footgun in the README quick-start.
+- GitHub Actions CI workflow: `go vet`, `go test -race -shuffle=on`,
+  `staticcheck`, `gofmt -l` across Go 1.21/1.22/1.23 on
+  linux/macos/windows.
+
+### Added (earlier in this cycle)
 
 - `ErrRedirectNotAllowed` sentinel returned (wrapped) when a token
   endpoint responds with a redirect. Callers can now detect this
