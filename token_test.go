@@ -80,7 +80,13 @@ func (e *echoServer) handler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, e.respBody)
 }
 
-func TestExchangeCode_StandardForm(t *testing.T) {
+// minimalExchangeReq is the standard ExchangeRequest used by tests that
+// only care about the response side of the round-trip.
+func minimalExchangeReq() ExchangeRequest {
+	return ExchangeRequest{Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb"}
+}
+
+func TestClient_Exchange_StandardForm(t *testing.T) {
 	es := &echoServer{
 		t: t,
 		wantFields: map[string]string{
@@ -97,16 +103,18 @@ func TestExchangeCode_StandardForm(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(es.handler))
 	defer srv.Close()
 
-	tok, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL:     srv.URL,
-		ClientID:     "cid",
+	c := &Client{
+		TokenURL: srv.URL,
+		ClientID: "cid",
+		Headers:  http.Header{"User-Agent": {"pinoauth-test"}},
+	}
+	tok, err := c.Exchange(context.Background(), ExchangeRequest{
 		Code:         "the-code",
 		CodeVerifier: "the-verifier",
 		RedirectURI:  "http://127.0.0.1:1234/cb",
-		Headers:      http.Header{"User-Agent": {"pinoauth-test"}},
 	})
 	if err != nil {
-		t.Fatalf("ExchangeCode: %v", err)
+		t.Fatalf("Exchange: %v", err)
 	}
 	if tok.AccessToken != "AT" {
 		t.Errorf("AccessToken=%q", tok.AccessToken)
@@ -131,7 +139,7 @@ func TestExchangeCode_StandardForm(t *testing.T) {
 	}
 }
 
-func TestExchangeCode_JSONBody(t *testing.T) {
+func TestClient_Exchange_JSONBody(t *testing.T) {
 	es := &echoServer{
 		t:          t,
 		expectJSON: true,
@@ -145,23 +153,17 @@ func TestExchangeCode_JSONBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(es.handler))
 	defer srv.Close()
 
-	tok, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL:     srv.URL,
-		ClientID:     "cid",
-		Code:         "C",
-		CodeVerifier: "V",
-		RedirectURI:  "http://x/cb",
-		BodyEncoder:  JSONBodyEncoder,
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "cid", BodyEncoder: JSONBodyEncoder}
+	tok, err := c.Exchange(context.Background(), minimalExchangeReq())
 	if err != nil {
-		t.Fatalf("ExchangeCode: %v", err)
+		t.Fatalf("Exchange: %v", err)
 	}
 	if tok.AccessToken != "AT" || tok.RefreshToken != "RT" {
 		t.Errorf("got %+v", tok)
 	}
 }
 
-func TestExchangeCode_ExtraFieldsOverride(t *testing.T) {
+func TestClient_Exchange_ExtraFieldsOverride(t *testing.T) {
 	var captured url.Values
 	es := &echoServer{
 		t:              t,
@@ -171,19 +173,16 @@ func TestExchangeCode_ExtraFieldsOverride(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(es.handler))
 	defer srv.Close()
 
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL:     srv.URL,
-		ClientID:     "cid",
-		Code:         "C",
-		CodeVerifier: "V",
-		RedirectURI:  "http://x/cb",
+	c := &Client{TokenURL: srv.URL, ClientID: "cid"}
+	_, err := c.Exchange(context.Background(), ExchangeRequest{
+		Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
 		Extra: url.Values{
 			"audience":  {"my-aud"},
 			"client_id": {"override"},
 		},
 	})
 	if err != nil {
-		t.Fatalf("ExchangeCode: %v", err)
+		t.Fatalf("Exchange: %v", err)
 	}
 	if captured.Get("audience") != "my-aud" {
 		t.Errorf("audience=%q", captured.Get("audience"))
@@ -193,7 +192,7 @@ func TestExchangeCode_ExtraFieldsOverride(t *testing.T) {
 	}
 }
 
-func TestExchangeCode_OAuthErrorResponse(t *testing.T) {
+func TestClient_Exchange_OAuthErrorResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(400)
@@ -201,13 +200,8 @@ func TestExchangeCode_OAuthErrorResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL:     srv.URL,
-		ClientID:     "cid",
-		Code:         "C",
-		CodeVerifier: "V",
-		RedirectURI:  "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "cid"}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -232,16 +226,15 @@ func TestExchangeCode_OAuthErrorResponse(t *testing.T) {
 	}
 }
 
-func TestExchangeCode_NonOAuthErrorBody(t *testing.T) {
+func TestClient_Exchange_NonOAuthErrorBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		io.WriteString(w, "<html>boom</html>")
 	}))
 	defer srv.Close()
 
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c"}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	var te *TokenError
 	if !errors.As(err, &te) {
 		t.Fatalf("expected *TokenError, got %v", err)
@@ -257,13 +250,12 @@ func TestExchangeCode_NonOAuthErrorBody(t *testing.T) {
 	}
 }
 
-func TestExchangeCode_TransportError(t *testing.T) {
+func TestClient_Exchange_TransportError(t *testing.T) {
 	// Closed server -> connection refused.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	srv.Close()
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c"}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	var te *TokenError
 	if !errors.As(err, &te) {
 		t.Fatalf("expected *TokenError, got %v", err)
@@ -273,37 +265,41 @@ func TestExchangeCode_TransportError(t *testing.T) {
 	}
 }
 
-func TestExchangeCode_ContextCancellation(t *testing.T) {
+func TestClient_Exchange_ContextCancellation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(2 * time.Second)
 	}))
 	defer srv.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := ExchangeCode(ctx, ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c"}
+	_, err := c.Exchange(ctx, minimalExchangeReq())
 	if err == nil {
 		t.Fatal("expected error from cancelled ctx")
 	}
 }
 
-func TestExchangeCode_RequiredParams(t *testing.T) {
-	cases := []ExchangeParams{
-		{},
-		{TokenURL: "x"},
-		{TokenURL: "x", ClientID: "c"},
-		{TokenURL: "x", ClientID: "c", Code: "C"},
-		{TokenURL: "x", ClientID: "c", Code: "C", CodeVerifier: "V"},
+func TestClient_Exchange_RequiredParams(t *testing.T) {
+	type tc struct {
+		name string
+		c    Client
+		r    ExchangeRequest
 	}
-	for i, p := range cases {
-		if _, err := ExchangeCode(context.Background(), p); err == nil {
-			t.Errorf("case %d: expected validation error", i)
+	cases := []tc{
+		{"empty", Client{}, ExchangeRequest{}},
+		{"no client id", Client{TokenURL: "x"}, ExchangeRequest{}},
+		{"no code", Client{TokenURL: "x", ClientID: "c"}, ExchangeRequest{}},
+		{"no verifier", Client{TokenURL: "x", ClientID: "c"}, ExchangeRequest{Code: "C"}},
+		{"no redirect", Client{TokenURL: "x", ClientID: "c"}, ExchangeRequest{Code: "C", CodeVerifier: "V"}},
+	}
+	for _, tc := range cases {
+		if _, err := tc.c.Exchange(context.Background(), tc.r); err == nil {
+			t.Errorf("%s: expected validation error", tc.name)
 		}
 	}
 }
 
-func TestRefresh_Standard(t *testing.T) {
+func TestClient_Refresh_Standard(t *testing.T) {
 	es := &echoServer{
 		t: t,
 		wantFields: map[string]string{
@@ -316,11 +312,8 @@ func TestRefresh_Standard(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(es.handler))
 	defer srv.Close()
 
-	tok, err := Refresh(context.Background(), RefreshParams{
-		TokenURL:     srv.URL,
-		ClientID:     "cid",
-		RefreshToken: "old-rt",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "cid"}
+	tok, err := c.Refresh(context.Background(), RefreshRequest{RefreshToken: "old-rt"})
 	if err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
@@ -332,12 +325,21 @@ func TestRefresh_Standard(t *testing.T) {
 	}
 }
 
-func TestRefresh_Required(t *testing.T) {
-	if _, err := Refresh(context.Background(), RefreshParams{}); err == nil {
-		t.Error("expected error for empty params")
+func TestClient_Refresh_Required(t *testing.T) {
+	type tc struct {
+		name string
+		c    Client
+		r    RefreshRequest
 	}
-	if _, err := Refresh(context.Background(), RefreshParams{TokenURL: "x", ClientID: "c"}); err == nil {
-		t.Error("expected error for missing refresh token")
+	cases := []tc{
+		{"empty", Client{}, RefreshRequest{}},
+		{"no client id", Client{TokenURL: "x"}, RefreshRequest{RefreshToken: "rt"}},
+		{"no refresh token", Client{TokenURL: "x", ClientID: "c"}, RefreshRequest{}},
+	}
+	for _, tc := range cases {
+		if _, err := tc.c.Refresh(context.Background(), tc.r); err == nil {
+			t.Errorf("%s: expected error", tc.name)
+		}
 	}
 }
 
@@ -374,9 +376,8 @@ func TestExpiresIn_StringForm(t *testing.T) {
 		io.WriteString(w, `{"access_token":"A","expires_in":"3600"}`)
 	}))
 	defer srv.Close()
-	tok, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c"}
+	tok, err := c.Exchange(context.Background(), minimalExchangeReq())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,9 +391,8 @@ func TestExpiresIn_Missing(t *testing.T) {
 		io.WriteString(w, `{"access_token":"A"}`)
 	}))
 	defer srv.Close()
-	tok, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c"}
+	tok, err := c.Exchange(context.Background(), minimalExchangeReq())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,15 +404,14 @@ func TestExpiresIn_Missing(t *testing.T) {
 	}
 }
 
-func TestExchangeCode_NonStandardResponseViaRaw(t *testing.T) {
+func TestClient_Exchange_NonStandardResponseViaRaw(t *testing.T) {
 	// Poe-style: returns "api_key" instead of "access_token".
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"api_key":"poe-key-xyz"}`)
 	}))
 	defer srv.Close()
-	tok, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c"}
+	tok, err := c.Exchange(context.Background(), minimalExchangeReq())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,15 +462,16 @@ func TestTokenError_ErrorString(t *testing.T) {
 	}
 }
 
-func TestExchangeCode_BodyEncoderError(t *testing.T) {
+func TestClient_Exchange_BodyEncoderError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
+	c := &Client{
+		TokenURL: srv.URL, ClientID: "c",
 		BodyEncoder: func(url.Values) (string, []byte, error) {
 			return "", nil, errors.New("encode-fail")
 		},
-	})
+	}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	var te *TokenError
 	if !errors.As(err, &te) || te.Err == nil {
 		t.Fatalf("expected TokenError wrapping encode err, got %v", err)
@@ -481,14 +481,13 @@ func TestExchangeCode_BodyEncoderError(t *testing.T) {
 	}
 }
 
-func TestExchangeCode_MalformedSuccessBody(t *testing.T) {
+func TestClient_Exchange_MalformedSuccessBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "not-json")
 	}))
 	defer srv.Close()
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c"}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	var te *TokenError
 	if !errors.As(err, &te) {
 		t.Fatalf("expected TokenError, got %v", err)
@@ -501,7 +500,7 @@ func TestExchangeCode_MalformedSuccessBody(t *testing.T) {
 	}
 }
 
-func TestExchangeCode_MidStreamReadError(t *testing.T) {
+func TestClient_Exchange_MidStreamReadError(t *testing.T) {
 	// Custom RoundTripper returning a response whose body errors on read.
 	rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -511,26 +510,25 @@ func TestExchangeCode_MidStreamReadError(t *testing.T) {
 			Request:    r,
 		}, nil
 	})
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: "http://example.invalid/",
-		ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
+	c := &Client{
+		TokenURL:   "http://example.invalid/",
+		ClientID:   "c",
 		HTTPClient: &http.Client{Transport: rt},
-	})
+	}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	var te *TokenError
 	if !errors.As(err, &te) || te.Err == nil {
 		t.Fatalf("expected wrapped read error, got %v", err)
 	}
 }
 
-func TestExchangeCode_ClientSecret(t *testing.T) {
+func TestClient_Exchange_ClientSecret(t *testing.T) {
 	var captured url.Values
 	es := &echoServer{t: t, gotFormCapture: &captured, respBody: `{"access_token":"A"}`}
 	srv := httptest.NewServer(http.HandlerFunc(es.handler))
 	defer srv.Close()
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", ClientSecret: "shh",
-		Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c", ClientSecret: "shh"}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +537,7 @@ func TestExchangeCode_ClientSecret(t *testing.T) {
 	}
 }
 
-func TestRefresh_AllOptions(t *testing.T) {
+func TestClient_Refresh_AllOptions(t *testing.T) {
 	var captured url.Values
 	es := &echoServer{
 		t:              t,
@@ -549,12 +547,14 @@ func TestRefresh_AllOptions(t *testing.T) {
 	}
 	srv := httptest.NewServer(http.HandlerFunc(es.handler))
 	defer srv.Close()
-	_, err := Refresh(context.Background(), RefreshParams{
+	c := &Client{
 		TokenURL: srv.URL, ClientID: "c", ClientSecret: "s",
-		RefreshToken: "rt", Scope: "a b",
-		Extra:      url.Values{"audience": {"x"}},
 		Headers:    http.Header{"X-Test": {"yes"}},
 		HTTPClient: &http.Client{Timeout: 5 * time.Second},
+	}
+	_, err := c.Refresh(context.Background(), RefreshRequest{
+		RefreshToken: "rt", Scope: "a b",
+		Extra: url.Values{"audience": {"x"}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -568,19 +568,6 @@ func TestRefresh_AllOptions(t *testing.T) {
 	}
 }
 
-func TestRefresh_RequiredAll(t *testing.T) {
-	cases := []RefreshParams{
-		{},
-		{TokenURL: "x"},
-		{TokenURL: "x", ClientID: "c"},
-	}
-	for i, p := range cases {
-		if _, err := Refresh(context.Background(), p); err == nil {
-			t.Errorf("case %d: expected error", i)
-		}
-	}
-}
-
 // roundTripperFunc adapts a func to http.RoundTripper.
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
@@ -590,11 +577,9 @@ type errReader struct{ err error }
 
 func (e errReader) Read([]byte) (int, error) { return 0, e.err }
 
-func TestExchangeCode_InvalidURLReturnsError(t *testing.T) {
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: "http://\x7f/", // CTL byte rejected by net/http
-		ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+func TestClient_Exchange_InvalidURLReturnsError(t *testing.T) {
+	c := &Client{TokenURL: "http://\x7f/", ClientID: "c"} // CTL byte rejected by net/http
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	var te *TokenError
 	if !errors.As(err, &te) {
 		t.Fatalf("expected *TokenError, got %T: %v", err, err)
@@ -604,12 +589,12 @@ func TestExchangeCode_InvalidURLReturnsError(t *testing.T) {
 	}
 }
 
-// TestExchangeCode_DefaultClientRefusesRedirect verifies that the
+// TestClient_Exchange_DefaultClientRefusesRedirect verifies that the
 // default HTTP client refuses to follow a 307/308 from the token
 // endpoint, which would otherwise re-POST the body (including any
 // client_secret / refresh_token / code_verifier) to the redirect
 // target.
-func TestExchangeCode_DefaultClientRefusesRedirect(t *testing.T) {
+func TestClient_Exchange_DefaultClientRefusesRedirect(t *testing.T) {
 	var hits int32
 	var redirectURL string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -623,10 +608,8 @@ func TestExchangeCode_DefaultClientRefusesRedirect(t *testing.T) {
 	defer srv.Close()
 	redirectURL = srv.URL + "/sink"
 
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-		ClientSecret: "secret-must-not-leak",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c", ClientSecret: "secret-must-not-leak"}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	if err == nil {
 		t.Fatal("expected error on redirect")
 	}
@@ -642,9 +625,9 @@ func TestExchangeCode_DefaultClientRefusesRedirect(t *testing.T) {
 	}
 }
 
-// TestExchangeCode_BodySizeLimit verifies oversized responses are
+// TestClient_Exchange_BodySizeLimit verifies oversized responses are
 // rejected rather than buffered unboundedly.
-func TestExchangeCode_BodySizeLimit(t *testing.T) {
+func TestClient_Exchange_BodySizeLimit(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// 2 MiB of JSON-ish junk → exceeds 1 MiB cap; truncated read
@@ -656,9 +639,8 @@ func TestExchangeCode_BodySizeLimit(t *testing.T) {
 		w.Write([]byte(`"}`))
 	}))
 	defer srv.Close()
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-	})
+	c := &Client{TokenURL: srv.URL, ClientID: "c"}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	if err == nil {
 		t.Fatal("expected error from oversized response")
 	}
@@ -673,8 +655,7 @@ func TestExchangeCode_BodySizeLimit(t *testing.T) {
 
 // TestExpiresIn_HostileOverflow verifies that a server returning an
 // absurd expires_in does not overflow the time.Duration math and
-// produce a past-dated ExpiresAt (which would make Token.Expired()
-// return true immediately and could drive a refresh loop).
+// produce a past-dated ExpiresAt.
 func TestExpiresIn_HostileOverflow(t *testing.T) {
 	for _, body := range []string{
 		`{"access_token":"A","expires_in":1e18}`,
@@ -686,18 +667,14 @@ func TestExpiresIn_HostileOverflow(t *testing.T) {
 				io.WriteString(w, body)
 			}))
 			defer srv.Close()
-			tok, err := ExchangeCode(context.Background(), ExchangeParams{
-				TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
-			})
+			c := &Client{TokenURL: srv.URL, ClientID: "c"}
+			tok, err := c.Exchange(context.Background(), minimalExchangeReq())
 			if err != nil {
 				t.Fatal(err)
 			}
 			if tok.Expired() {
 				t.Errorf("hostile expires_in must not yield already-expired token (ExpiresAt=%v)", tok.ExpiresAt)
 			}
-			// Either clamped to far-future or rejected to zero — both
-			// are safe. What we forbid is a past-dated ExpiresAt from
-			// integer-overflow.
 			if !tok.ExpiresAt.IsZero() && tok.ExpiresAt.Before(time.Now()) {
 				t.Errorf("ExpiresAt before now (overflow): %v", tok.ExpiresAt)
 			}
@@ -705,23 +682,41 @@ func TestExpiresIn_HostileOverflow(t *testing.T) {
 	}
 }
 
-// TestExchangeCode_HeaderContentTypeIgnored verifies caller-supplied
+// TestClient_Exchange_HeaderContentTypeIgnored verifies caller-supplied
 // Content-Type does not duplicate or override the BodyEncoder's value.
-func TestExchangeCode_HeaderContentTypeIgnored(t *testing.T) {
+func TestClient_Exchange_HeaderContentTypeIgnored(t *testing.T) {
 	var seenCT []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenCT = r.Header.Values("Content-Type")
 		io.WriteString(w, `{"access_token":"A"}`)
 	}))
 	defer srv.Close()
-	_, err := ExchangeCode(context.Background(), ExchangeParams{
-		TokenURL: srv.URL, ClientID: "c", Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
+	c := &Client{
+		TokenURL: srv.URL, ClientID: "c",
 		Headers: http.Header{"Content-Type": {"text/plain"}, "X-Other": {"keep"}},
-	})
+	}
+	_, err := c.Exchange(context.Background(), minimalExchangeReq())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(seenCT) != 1 || !strings.HasPrefix(seenCT[0], "application/x-www-form-urlencoded") {
 		t.Errorf("Content-Type leaked from caller Headers: %v", seenCT)
+	}
+}
+
+// TestTokenClient_InterfaceSatisfied ensures *Client satisfies TokenClient
+// (the compile-time check in token.go is the canonical guarantee; this
+// test exists to also exercise the interface from a runtime call site).
+func TestTokenClient_InterfaceSatisfied(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"access_token":"A"}`)
+	}))
+	defer srv.Close()
+	var tc TokenClient = &Client{TokenURL: srv.URL, ClientID: "c"}
+	if _, err := tc.Exchange(context.Background(), minimalExchangeReq()); err != nil {
+		t.Fatalf("Exchange via interface: %v", err)
+	}
+	if _, err := tc.Refresh(context.Background(), RefreshRequest{RefreshToken: "rt"}); err != nil {
+		t.Fatalf("Refresh via interface: %v", err)
 	}
 }

@@ -147,10 +147,30 @@ func JSONBodyEncoder(values url.Values) (string, []byte, error) {
 	return "application/json", body, nil
 }
 
-// ExchangeParams configures an authorization-code → token exchange
-// (RFC 6749 §4.1.3, RFC 7636 §4.5). Required: TokenURL, ClientID, Code,
-// CodeVerifier, RedirectURI.
-type ExchangeParams struct {
+// TokenClient is the contract for the token-endpoint half of an OAuth
+// flow: an authorization-code → token exchange (RFC 6749 §4.1.3) and a
+// refresh-token → token exchange (RFC 6749 §6). [*Client] is the
+// canonical implementation; the interface lets callers swap in fakes for
+// testing or compose alternate transports without depending on the
+// concrete type.
+type TokenClient interface {
+	// Exchange performs an authorization-code grant.
+	Exchange(ctx context.Context, req ExchangeRequest) (*Token, error)
+	// Refresh performs a refresh-token grant.
+	Refresh(ctx context.Context, req RefreshRequest) (*Token, error)
+}
+
+// Client is a configured OAuth token-endpoint client. The fields hold
+// the per-provider configuration that does not change between requests
+// (endpoint URL, credentials, transport, encoding); per-request data
+// flows through [ExchangeRequest] and [RefreshRequest].
+//
+// TokenURL and ClientID are required. The zero value is not useful;
+// construct a Client as a struct literal.
+//
+// Client is safe for concurrent use as long as callers do not mutate
+// its fields after the first request.
+type Client struct {
 	// TokenURL is the provider's token endpoint. MUST be https:// in
 	// production; the library does not enforce this so tests can use
 	// httptest.NewServer.
@@ -160,6 +180,25 @@ type ExchangeParams struct {
 	// ClientSecret is sent as a form field when non-empty. Native apps
 	// (RFC 8252) typically have no secret; leave empty in that case.
 	ClientSecret string
+	// HTTPClient overrides the default http.Client. When nil, an
+	// internal client with a 30 s timeout is used.
+	HTTPClient *http.Client
+	// BodyEncoder overrides the default form encoding. See
+	// [JSONBodyEncoder].
+	BodyEncoder BodyEncoder
+	// Headers are added to every HTTP request issued by this Client.
+	// Content-Type is set by the BodyEncoder and must not be specified
+	// here; a caller-supplied Content-Type is dropped.
+	Headers http.Header
+}
+
+// Compile-time check that *Client satisfies TokenClient.
+var _ TokenClient = (*Client)(nil)
+
+// ExchangeRequest is the per-call input to [Client.Exchange]: the data
+// from the authorization-endpoint round-trip that varies per login
+// attempt. All fields except Extra are required.
+type ExchangeRequest struct {
 	// Code is the authorization code returned by the authorization
 	// endpoint.
 	Code string
@@ -175,105 +214,93 @@ type ExchangeParams struct {
 	// code_verifier, and redirect_uri. Do not pipe untrusted input
 	// into Extra.
 	Extra url.Values
-	// Headers are added to the HTTP request. Content-Type is set by
-	// the BodyEncoder and must not be specified here; a caller-supplied
-	// Content-Type is dropped.
-	Headers http.Header
-	// HTTPClient overrides the default http.Client. When nil, an
-	// internal client with a 30 s timeout is used.
-	HTTPClient *http.Client
-	// BodyEncoder overrides the default form encoding. See
-	// [JSONBodyEncoder].
-	BodyEncoder BodyEncoder
 }
 
-// RefreshParams configures a refresh-token → token exchange
-// (RFC 6749 §6). Required: TokenURL, ClientID, RefreshToken.
-type RefreshParams struct {
-	TokenURL     string
-	ClientID     string
-	ClientSecret string
+// RefreshRequest is the per-call input to [Client.Refresh]. RefreshToken
+// is required; Scope and Extra are optional.
+type RefreshRequest struct {
+	// RefreshToken is the refresh token issued by a previous token
+	// response.
 	RefreshToken string
 	// Scope optionally narrows the granted scope on refresh
 	// (RFC 6749 §6 "scope"); leave empty to keep the original scope.
-	Scope       string
-	Extra       url.Values
-	Headers     http.Header
-	HTTPClient  *http.Client
-	BodyEncoder BodyEncoder
+	Scope string
+	// Extra adds or overrides form fields on the request body. See
+	// [ExchangeRequest.Extra] — same caveats apply.
+	Extra url.Values
 }
 
-// ExchangeCode performs an authorization-code grant (RFC 6749 §4.1.3)
-// with PKCE (RFC 7636) and returns the parsed [Token]. Any failure
-// (validation, transport, RFC 6749 §5.2 error response, body
-// encoding, response decoding) is returned as a *[TokenError] —
-// except missing required parameters, which return a plain error.
-func ExchangeCode(ctx context.Context, p ExchangeParams) (*Token, error) {
-	if p.TokenURL == "" {
-		return nil, errors.New("pinoauth: ExchangeCode: TokenURL is required")
+// Exchange performs an authorization-code grant (RFC 6749 §4.1.3) with
+// PKCE (RFC 7636) and returns the parsed [Token]. Any failure
+// (transport, RFC 6749 §5.2 error response, body encoding, response
+// decoding) is returned as a *[TokenError] — except missing required
+// parameters, which return a plain error.
+func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*Token, error) {
+	if c.TokenURL == "" {
+		return nil, errors.New("pinoauth: Client.Exchange: TokenURL is required")
 	}
-	if p.ClientID == "" {
-		return nil, errors.New("pinoauth: ExchangeCode: ClientID is required")
+	if c.ClientID == "" {
+		return nil, errors.New("pinoauth: Client.Exchange: ClientID is required")
 	}
-	if p.Code == "" {
-		return nil, errors.New("pinoauth: ExchangeCode: Code is required")
+	if req.Code == "" {
+		return nil, errors.New("pinoauth: Client.Exchange: Code is required")
 	}
-	if p.CodeVerifier == "" {
-		return nil, errors.New("pinoauth: ExchangeCode: CodeVerifier is required")
+	if req.CodeVerifier == "" {
+		return nil, errors.New("pinoauth: Client.Exchange: CodeVerifier is required")
 	}
-	if p.RedirectURI == "" {
-		return nil, errors.New("pinoauth: ExchangeCode: RedirectURI is required")
+	if req.RedirectURI == "" {
+		return nil, errors.New("pinoauth: Client.Exchange: RedirectURI is required")
 	}
 
 	values := url.Values{}
 	values.Set("grant_type", "authorization_code")
-	values.Set("client_id", p.ClientID)
-	values.Set("code", p.Code)
-	values.Set("code_verifier", p.CodeVerifier)
-	values.Set("redirect_uri", p.RedirectURI)
-	if p.ClientSecret != "" {
-		values.Set("client_secret", p.ClientSecret)
+	values.Set("client_id", c.ClientID)
+	values.Set("code", req.Code)
+	values.Set("code_verifier", req.CodeVerifier)
+	values.Set("redirect_uri", req.RedirectURI)
+	if c.ClientSecret != "" {
+		values.Set("client_secret", c.ClientSecret)
 	}
-	for k, vs := range p.Extra {
+	for k, vs := range req.Extra {
 		values[k] = vs
 	}
 
-	return doTokenRequest(ctx, p.TokenURL, values, p.Headers, p.HTTPClient, p.BodyEncoder)
+	return c.do(ctx, values)
 }
 
 // Refresh performs a refresh-token grant (RFC 6749 §6) and returns the
-// parsed [Token]. Errors are returned the same way as [ExchangeCode]:
+// parsed [Token]. Errors are returned the same way as [Client.Exchange]:
 // any non-validation failure surfaces as a *[TokenError].
 //
 // Refresh is stateless: it does not mutate any input and does not
 // persist tokens. The caller decides when to refresh (typically using
 // [Token.ExpiresWithin]) and where to store the result.
-func Refresh(ctx context.Context, p RefreshParams) (*Token, error) {
-	if p.TokenURL == "" {
-		return nil, errors.New("pinoauth: Refresh: TokenURL is required")
+func (c *Client) Refresh(ctx context.Context, req RefreshRequest) (*Token, error) {
+	if c.TokenURL == "" {
+		return nil, errors.New("pinoauth: Client.Refresh: TokenURL is required")
 	}
-	if p.ClientID == "" {
-		return nil, errors.New("pinoauth: Refresh: ClientID is required")
+	if c.ClientID == "" {
+		return nil, errors.New("pinoauth: Client.Refresh: ClientID is required")
 	}
-	if p.RefreshToken == "" {
-		return nil, errors.New("pinoauth: Refresh: RefreshToken is required")
+	if req.RefreshToken == "" {
+		return nil, errors.New("pinoauth: Client.Refresh: RefreshToken is required")
 	}
 
 	values := url.Values{}
 	values.Set("grant_type", "refresh_token")
-	values.Set("client_id", p.ClientID)
-	values.Set("refresh_token", p.RefreshToken)
-	if p.ClientSecret != "" {
-		values.Set("client_secret", p.ClientSecret)
+	values.Set("client_id", c.ClientID)
+	values.Set("refresh_token", req.RefreshToken)
+	if c.ClientSecret != "" {
+		values.Set("client_secret", c.ClientSecret)
 	}
-	if p.Scope != "" {
-		values.Set("scope", p.Scope)
+	if req.Scope != "" {
+		values.Set("scope", req.Scope)
 	}
-	for k, vs := range p.Extra {
+	for k, vs := range req.Extra {
 		values[k] = vs
 	}
 
-	return doTokenRequest(ctx, p.TokenURL, values, p.Headers, p.HTTPClient, p.BodyEncoder)
+	return c.do(ctx, values)
 }
 
 // ErrRedirectNotAllowed is returned (wrapped) when the token endpoint
@@ -310,21 +337,17 @@ const maxTokenResponseBytes = 1 << 20 // 1 MiB
 // nanosecond duration comfortably inside int64.
 const maxExpiresInSeconds = 1 << 31
 
-func doTokenRequest(
-	ctx context.Context,
-	tokenURL string,
-	values url.Values,
-	headers http.Header,
-	client *http.Client,
-	encoder BodyEncoder,
-) (*Token, error) {
+// do executes the assembled token request — encode body, build request,
+// dispatch via Client.HTTPClient (or the default), parse the response.
+// All non-validation errors come back as *TokenError.
+func (c *Client) do(ctx context.Context, values url.Values) (*Token, error) {
 	var (
 		contentType string
 		body        []byte
 		err         error
 	)
-	if encoder != nil {
-		contentType, body, err = encoder(values)
+	if c.BodyEncoder != nil {
+		contentType, body, err = c.BodyEncoder(values)
 		if err != nil {
 			return nil, &TokenError{Err: fmt.Errorf("encoding body: %w", err)}
 		}
@@ -333,13 +356,13 @@ func doTokenRequest(
 		body = []byte(values.Encode())
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.TokenURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, &TokenError{Err: fmt.Errorf("building token request: %w", err)}
 	}
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/json")
-	for k, vs := range headers {
+	for k, vs := range c.Headers {
 		// Content-Type is owned by the BodyEncoder; ignore any
 		// caller-supplied value to avoid duplicate/conflicting headers.
 		if http.CanonicalHeaderKey(k) == "Content-Type" {
@@ -350,10 +373,11 @@ func doTokenRequest(
 		}
 	}
 
-	if client == nil {
-		client = defaultHTTPClient
+	httpClient := c.HTTPClient
+	if httpClient == nil {
+		httpClient = defaultHTTPClient
 	}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, &TokenError{Err: err}
 	}

@@ -13,11 +13,11 @@ import (
 	"github.com/kfet/pinoauth"
 )
 
-// ExampleExchangeCode demonstrates the full Anthropic-equivalent flow
+// ExampleClient demonstrates the full Anthropic-equivalent flow
 // in pure pinoauth: PKCE → loopback callback → token exchange → refresh.
 // The token endpoint is stubbed with httptest so the example is
 // self-contained.
-func ExampleExchangeCode() {
+func ExampleClient() {
 	// --- stub Anthropic-style token endpoint (JSON body, JSON response) ---
 	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -65,14 +65,17 @@ func ExampleExchangeCode() {
 	}()
 	cb := <-resultCh
 
-	// 5. Exchange code → tokens. Anthropic's endpoint takes JSON.
-	tok, err := pinoauth.ExchangeCode(ctx, pinoauth.ExchangeParams{
-		TokenURL:     tokenSrv.URL,
-		ClientID:     "CID",
+	// 5. Build a Client and exchange code → tokens. Anthropic's endpoint
+	//    takes JSON.
+	client := &pinoauth.Client{
+		TokenURL:    tokenSrv.URL,
+		ClientID:    "CID",
+		BodyEncoder: pinoauth.JSONBodyEncoder,
+	}
+	tok, err := client.Exchange(ctx, pinoauth.ExchangeRequest{
 		Code:         cb.Code,
 		CodeVerifier: pkce.Verifier,
 		RedirectURI:  redirectURI,
-		BodyEncoder:  pinoauth.JSONBodyEncoder,
 	})
 	if err != nil {
 		panic(err)
@@ -80,13 +83,10 @@ func ExampleExchangeCode() {
 	fmt.Printf("access=%s refresh=%s expires_set=%v\n",
 		tok.AccessToken, tok.RefreshToken, !tok.ExpiresAt.IsZero())
 
-	// 6. Later, when about to expire, refresh.
+	// 6. Later, when about to expire, refresh — using the same Client.
 	if tok.ExpiresWithin(time.Hour + time.Minute) {
-		tok2, err := pinoauth.Refresh(ctx, pinoauth.RefreshParams{
-			TokenURL:     tokenSrv.URL,
-			ClientID:     "CID",
+		tok2, err := client.Refresh(ctx, pinoauth.RefreshRequest{
 			RefreshToken: tok.RefreshToken,
-			BodyEncoder:  pinoauth.JSONBodyEncoder,
 		})
 		if err != nil {
 			panic(err)
