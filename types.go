@@ -4,24 +4,6 @@ import (
 	"context"
 )
 
-// Credentials holds OAuth tokens for a provider.
-//
-// Credentials is a plain data carrier; concurrent use must be guarded by
-// the caller.
-type Credentials struct {
-	// Refresh is the refresh token (may be empty for providers that
-	// don't issue one).
-	Refresh string `json:"refresh"`
-	// Access is the bearer access token.
-	Access string `json:"access"`
-	// Expires is the access-token expiry as a Unix timestamp in
-	// milliseconds.
-	Expires int64 `json:"expires"`
-	// Extra carries provider-specific fields that don't fit the common
-	// shape (e.g. an ID token, account ID, scope set).
-	Extra map[string]any `json:"extra,omitempty"`
-}
-
 // Prompt describes a text prompt shown to the user during login.
 type Prompt struct {
 	// Message is the prompt label shown to the user.
@@ -60,31 +42,29 @@ type LoginCallbacks struct {
 	OnDismissManualInput func()
 }
 
-// Provider is the interface that an OAuth login implementation satisfies.
+// Provider is a convention for assembling pinoauth's primitives into a
+// provider-specific login flow. pinoauth itself ships no concrete
+// providers; Provider exists as a shared shape so callers can plug
+// different login flows behind one type.
 //
-// pinoauth itself ships no concrete providers; Provider exists as a
-// shared shape so callers can plug different login flows behind one type.
+// The interface is deliberately minimal: ID/Name for display, Login for
+// the interactive flow, RefreshToken for renewal. Anything provider-
+// specific (API-key extraction, model listing, account IDs) belongs in
+// the concrete type's own methods, not here.
 type Provider interface {
 	// ID returns a stable provider identifier (e.g. "anthropic").
 	ID() string
 	// Name returns a human-readable provider name.
 	Name() string
-	// Login runs the full OAuth login flow and returns credentials to
+	// Login runs the full OAuth login flow and returns a token to
 	// persist. Implementations must honour ctx for cancellation.
-	Login(ctx context.Context, callbacks LoginCallbacks) (*Credentials, error)
+	Login(ctx context.Context, callbacks LoginCallbacks) (*Token, error)
 	// UsesCallbackServer reports whether Login uses a loopback HTTP
 	// callback server (and thus supports manual-code-input fallback).
 	UsesCallbackServer() bool
-	// RefreshToken exchanges expired credentials for fresh ones.
+	// RefreshToken exchanges an expired token for a fresh one.
 	// Implementations must honour ctx for cancellation.
-	RefreshToken(ctx context.Context, creds *Credentials) (*Credentials, error)
-	// GetAPIKey extracts the API key string from credentials, or "" if
-	// the provider does not expose one.
-	GetAPIKey(creds *Credentials) string
-	// ListModels returns the model IDs available for the given
-	// credentials. It returns nil, nil when live listing is not
-	// supported (callers should fall back to permissive mode).
-	ListModels(ctx context.Context, creds *Credentials) ([]string, error)
+	RefreshToken(ctx context.Context, tok *Token) (*Token, error)
 }
 
 // ProviderInfo describes an OAuth provider for display in the UI.
