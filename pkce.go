@@ -23,7 +23,11 @@ type PKCEChallenge struct {
 // random verifier (base64url-encoded, no padding) and its S256 challenge.
 //
 // Callers should generate a new pair per authorization request.
-func GeneratePKCE() (*PKCEChallenge, error) {
+//
+// GeneratePKCE panics only if the kernel CSPRNG is unavailable, which
+// on every supported platform indicates a host that cannot meaningfully
+// continue.
+func GeneratePKCE() *PKCEChallenge {
 	verifierBytes := make([]byte, 32)
 	mustReadRandom(verifierBytes)
 	verifier := base64URLEncode(verifierBytes)
@@ -34,7 +38,25 @@ func GeneratePKCE() (*PKCEChallenge, error) {
 	return &PKCEChallenge{
 		Verifier:  verifier,
 		Challenge: challenge,
-	}, nil
+	}
+}
+
+// GenerateState returns a 32-byte cryptographically random value,
+// base64url-encoded with no padding, suitable for use as the OAuth 2.0
+// "state" parameter (RFC 6749 §10.12).
+//
+// Callers should generate a new state per authorization request and
+// compare it byte-for-byte against the value echoed back by the
+// authorization server (or returned by [StartCallbackServer], which
+// already enforces the comparison when given a non-empty expectedState).
+//
+// GenerateState panics only if the kernel CSPRNG is unavailable, which
+// on every supported platform indicates a host that cannot meaningfully
+// continue.
+func GenerateState() string {
+	b := make([]byte, 32)
+	mustReadRandom(b)
+	return base64URLEncode(b)
 }
 
 // base64URLEncode encodes bytes as a base64url string without padding.

@@ -37,10 +37,10 @@ func ExampleExchangeCode() {
 	defer cancel()
 
 	// 1. PKCE.
-	pkce, _ := pinoauth.GeneratePKCE()
+	pkce := pinoauth.GeneratePKCE()
 
 	// 2. Loopback callback server.
-	const state = "example-state"
+	state := pinoauth.GenerateState()
 	srv, resultCh, addr, _ := pinoauth.StartCallbackServer(ctx, "/cb", "127.0.0.1:0", state)
 	defer srv.Close()
 	redirectURI := "http://" + addr + "/cb"

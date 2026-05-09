@@ -7,10 +7,7 @@ import (
 )
 
 func TestGeneratePKCE_ReturnsValidChallenge(t *testing.T) {
-	p, err := GeneratePKCE()
-	if err != nil {
-		t.Fatalf("GeneratePKCE() error: %v", err)
-	}
+	p := GeneratePKCE()
 	if p.Verifier == "" {
 		t.Error("Verifier should not be empty")
 	}
@@ -20,10 +17,7 @@ func TestGeneratePKCE_ReturnsValidChallenge(t *testing.T) {
 }
 
 func TestGeneratePKCE_VerifierLength(t *testing.T) {
-	p, err := GeneratePKCE()
-	if err != nil {
-		t.Fatalf("GeneratePKCE() error: %v", err)
-	}
+	p := GeneratePKCE()
 	// 32 bytes base64url-encoded = 43 chars (no padding)
 	if len(p.Verifier) != 43 {
 		t.Errorf("Verifier length = %d, want 43", len(p.Verifier))
@@ -31,10 +25,7 @@ func TestGeneratePKCE_VerifierLength(t *testing.T) {
 }
 
 func TestGeneratePKCE_ChallengeLength(t *testing.T) {
-	p, err := GeneratePKCE()
-	if err != nil {
-		t.Fatalf("GeneratePKCE() error: %v", err)
-	}
+	p := GeneratePKCE()
 	// SHA-256 = 32 bytes, base64url-encoded = 43 chars (no padding)
 	if len(p.Challenge) != 43 {
 		t.Errorf("Challenge length = %d, want 43", len(p.Challenge))
@@ -42,10 +33,7 @@ func TestGeneratePKCE_ChallengeLength(t *testing.T) {
 }
 
 func TestGeneratePKCE_ChallengeMatchesVerifier(t *testing.T) {
-	p, err := GeneratePKCE()
-	if err != nil {
-		t.Fatalf("GeneratePKCE() error: %v", err)
-	}
+	p := GeneratePKCE()
 
 	// Manually compute SHA-256 of verifier and compare
 	hash := sha256.Sum256([]byte(p.Verifier))
@@ -57,29 +45,36 @@ func TestGeneratePKCE_ChallengeMatchesVerifier(t *testing.T) {
 }
 
 func TestGeneratePKCE_VerifierAndChallengeAreDifferent(t *testing.T) {
-	p, err := GeneratePKCE()
-	if err != nil {
-		t.Fatalf("GeneratePKCE() error: %v", err)
-	}
+	p := GeneratePKCE()
 	if p.Verifier == p.Challenge {
 		t.Error("Verifier and Challenge should be different")
 	}
 }
 
 func TestGeneratePKCE_TwoCallsProduceDifferentValues(t *testing.T) {
-	p1, err := GeneratePKCE()
-	if err != nil {
-		t.Fatalf("first GeneratePKCE() error: %v", err)
-	}
-	p2, err := GeneratePKCE()
-	if err != nil {
-		t.Fatalf("second GeneratePKCE() error: %v", err)
-	}
+	p1 := GeneratePKCE()
+	p2 := GeneratePKCE()
 	if p1.Verifier == p2.Verifier {
 		t.Error("Two calls should produce different verifiers")
 	}
 	if p1.Challenge == p2.Challenge {
 		t.Error("Two calls should produce different challenges")
+	}
+}
+
+func TestGenerateState_Length(t *testing.T) {
+	s := GenerateState()
+	// 32 bytes base64url-encoded = 43 chars (no padding)
+	if len(s) != 43 {
+		t.Errorf("GenerateState length = %d, want 43", len(s))
+	}
+}
+
+func TestGenerateState_TwoCallsProduceDifferentValues(t *testing.T) {
+	s1 := GenerateState()
+	s2 := GenerateState()
+	if s1 == s2 {
+		t.Error("Two calls should produce different state values")
 	}
 }
 

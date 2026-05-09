@@ -8,6 +8,7 @@ Guidance for AI agents working on `pinoauth`.
 OAuth (RFC 8252) in CLI/native apps. Building blocks:
 
 - PKCE — `GeneratePKCE` (`pkce.go`)
+- State — `GenerateState` (`pkce.go`)
 - Loopback callback server — `StartCallbackServer` (`callback_server.go`,
   `callback_page.html`)
 - Pasted-code parser — `ParseAuthorizationInput` (`parse_auth.go`)

@@ -18,12 +18,8 @@ func ExampleStartCallbackServer() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pkce, err := pinoauth.GeneratePKCE()
-	if err != nil {
-		panic(err)
-	}
-
-	const state = "example-state-token" // in real code: cryptographic random
+	pkce := pinoauth.GeneratePKCE()
+	state := pinoauth.GenerateState()
 	srv, resultCh, addr, err := pinoauth.StartCallbackServer(
 		ctx, "/callback", "127.0.0.1:0", state,
 	)
@@ -56,6 +52,6 @@ func ExampleStartCallbackServer() {
 	}()
 
 	res := <-resultCh
-	fmt.Printf("code=%s state=%s\n", res.Code, res.State)
-	// Output: code=sample-auth-code state=example-state-token
+	fmt.Printf("code=%s state_matches=%v\n", res.Code, res.State == state)
+	// Output: code=sample-auth-code state_matches=true
 }

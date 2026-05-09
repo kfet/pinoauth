@@ -6,6 +6,8 @@
 // nothing else:
 //
 //   - [GeneratePKCE] — RFC 7636 code verifier + S256 challenge.
+//   - [GenerateState] — random value for the OAuth state parameter
+//     (RFC 6749 §10.12).
 //   - [StartCallbackServer] — loopback HTTP server that catches the
 //     redirect, validates the state parameter, renders a styled success
 //     or error page, and delivers the result on a channel.
