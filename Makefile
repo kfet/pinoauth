@@ -1,4 +1,4 @@
-.PHONY: all test check fmt fmtcheck vet staticcheck _staticcheck run-tests open_coverage clean
+.PHONY: all check fmt fmtcheck vet staticcheck _staticcheck run-tests open_coverage clean
 
 # Quiet runner: $(call RUN,label,cmd) — runs cmd silently, prints "✓ label" on
 # success, dumps captured output and exits non-zero on failure. Set V=1 for
@@ -19,15 +19,12 @@ else
   endef
 endif
 
-# Default target. gofmt + vet + staticcheck + unit tests with 100% coverage
-# (cached, no race). Use `make test` for the strict pass with -race -shuffle=on.
+# Default (and only) target. gofmt + go vet + staticcheck + unit tests with
+# the race detector, shuffled order, fresh cache, and a 100% coverage gate.
+# This is also exactly what CI runs — no separate "fast" mode. If you want
+# to iterate faster locally, run `go test ./...` directly.
 all: run-tests
 	@echo "✓ all green"
-
-# Strict test pass: clean cache, race detector, shuffled. This is what CI runs.
-test:
-	@go clean -testcache
-	@GOGC=off $(MAKE) run-tests TEST_FLAGS="-race -shuffle=on"
 
 # Static gates (gofmt + go vet + staticcheck if installed).
 check: fmtcheck vet staticcheck
@@ -52,10 +49,10 @@ staticcheck:
 _staticcheck:
 	$(call RUN,staticcheck clean,out=$$(staticcheck ./... 2>&1 | grep -v 'file requires newer Go version' || true); test -z "$$out" || { echo "$$out"; exit 1; })
 
-# Run unit tests with the 100% coverage gate (excluding patterns in .covignore).
-# Usage: make run-tests TEST_FLAGS="-race -shuffle=on"
+# Run unit tests with race + shuffle + fresh cache + 100% coverage gate.
 run-tests: check
-	$(call RUN,tests pass,go test -cover $(TEST_FLAGS) ./... -coverprofile=coverage.tmp.out)
+	@go clean -testcache
+	$(call RUN,tests pass,go test -race -shuffle=on -cover ./... -coverprofile=coverage.tmp.out)
 	$(call RUN,coverage clean,go run github.com/kfet/covgate/cmd/covgate@v0.1.0 -profile=coverage.tmp.out -out=coverage.out -ignore=.covignore -min=100)
 	@rm -f coverage.tmp.out
 
