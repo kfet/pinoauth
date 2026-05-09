@@ -32,7 +32,7 @@ to this repo. They belong in the consumer's codebase.
 - `make all` runs vet + race tests. Must pass before any commit.
 - Add a `## [Unreleased]` entry in `CHANGELOG.md` for any user-visible
   change.
-- Update `doc.go` and `README.md` when the public API changes.
+- Update `doc.go`, `README.md`, and `AGENTS.md` when the public API changes.
 
 ## Public API
 
