@@ -630,6 +630,13 @@ func TestExchangeCode_DefaultClientRefusesRedirect(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error on redirect")
 	}
+	if !errors.Is(err, ErrRedirectNotAllowed) {
+		t.Errorf("expected errors.Is(err, ErrRedirectNotAllowed), got %v", err)
+	}
+	var te *TokenError
+	if !errors.As(err, &te) {
+		t.Errorf("expected *TokenError, got %v", err)
+	}
 	if atomic.LoadInt32(&hits) != 1 {
 		t.Errorf("expected exactly 1 server hit (redirect refused), got %d", hits)
 	}

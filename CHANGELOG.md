@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `ErrRedirectNotAllowed` sentinel returned (wrapped) when a token
+  endpoint responds with a redirect. Callers can now detect this
+  specific security condition via `errors.Is` rather than string-
+  matching the message.
+
 ### Security
 
 - Default `*http.Client` used by `ExchangeCode`/`Refresh` now refuses

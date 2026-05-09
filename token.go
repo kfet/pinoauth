@@ -276,6 +276,15 @@ func Refresh(ctx context.Context, p RefreshParams) (*Token, error) {
 	return doTokenRequest(ctx, p.TokenURL, values, p.Headers, p.HTTPClient, p.BodyEncoder)
 }
 
+// ErrRedirectNotAllowed is returned (wrapped) when the token endpoint
+// responds with a redirect. pinoauth's default HTTP client refuses to
+// follow because a redirect on a token-endpoint POST would re-send the
+// body — which carries client_secret, refresh_token, and code_verifier
+// — to the redirect target. The error surfaces wrapped inside a
+// *[url.Error] (from net/http) and then inside [TokenError.Err];
+// [errors.Is] matches through both layers.
+var ErrRedirectNotAllowed = errors.New("pinoauth: redirect not allowed on token endpoint")
+
 // defaultHTTPClient is used when the caller does not supply one. We
 // avoid http.DefaultClient because it has no timeout and follows
 // redirects: a redirect on a token-endpoint POST would re-send the
@@ -285,7 +294,7 @@ func Refresh(ctx context.Context, p RefreshParams) (*Token, error) {
 var defaultHTTPClient = &http.Client{
 	Timeout: 30 * time.Second,
 	CheckRedirect: func(*http.Request, []*http.Request) error {
-		return errors.New("redirect not allowed on token endpoint")
+		return ErrRedirectNotAllowed
 	},
 }
 
