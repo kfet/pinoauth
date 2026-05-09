@@ -39,5 +39,5 @@
 //
 // pinoauth was extracted from the fir coding-agent harness
 // (https://github.com/kfet/fir), where it powers OAuth login for
-// Anthropic, GitHub Copilot, OpenAI Codex, Gemini CLI, and others.
+// multiple providers.
 package pinoauth

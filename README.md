@@ -11,8 +11,7 @@ CLI and desktop applications — i.e. [RFC 8252](https://datatracker.ietf.org/do
 "OAuth 2.0 for Native Apps" with [PKCE](https://datatracker.ietf.org/doc/html/rfc7636).
 
 Extracted from the [fir](https://github.com/kfet/fir) coding-agent harness,
-where it handles login for Anthropic, GitHub Copilot, OpenAI Codex,
-Gemini CLI, and others.
+where it handles login for multiple providers.
 
 ## What it is
 
