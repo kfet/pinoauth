@@ -147,19 +147,6 @@ func JSONBodyEncoder(values url.Values) (string, []byte, error) {
 	return "application/json", body, nil
 }
 
-// TokenClient is the contract for the token-endpoint half of an OAuth
-// flow: an authorization-code → token exchange (RFC 6749 §4.1.3) and a
-// refresh-token → token exchange (RFC 6749 §6). [*Client] is the
-// canonical implementation; the interface lets callers swap in fakes for
-// testing or compose alternate transports without depending on the
-// concrete type.
-type TokenClient interface {
-	// Exchange performs an authorization-code grant.
-	Exchange(ctx context.Context, req ExchangeRequest) (*Token, error)
-	// Refresh performs a refresh-token grant.
-	Refresh(ctx context.Context, req RefreshRequest) (*Token, error)
-}
-
 // Client is a configured OAuth token-endpoint client. The fields hold
 // the per-provider configuration that does not change between requests
 // (endpoint URL, credentials, transport, encoding); per-request data
@@ -191,9 +178,6 @@ type Client struct {
 	// here; a caller-supplied Content-Type is dropped.
 	Headers http.Header
 }
-
-// Compile-time check that *Client satisfies TokenClient.
-var _ TokenClient = (*Client)(nil)
 
 // ExchangeRequest is the per-call input to [Client.Exchange]: the data
 // from the authorization-endpoint round-trip that varies per login

@@ -703,20 +703,3 @@ func TestClient_Exchange_HeaderContentTypeIgnored(t *testing.T) {
 		t.Errorf("Content-Type leaked from caller Headers: %v", seenCT)
 	}
 }
-
-// TestTokenClient_InterfaceSatisfied ensures *Client satisfies TokenClient
-// (the compile-time check in token.go is the canonical guarantee; this
-// test exists to also exercise the interface from a runtime call site).
-func TestTokenClient_InterfaceSatisfied(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, `{"access_token":"A"}`)
-	}))
-	defer srv.Close()
-	var tc TokenClient = &Client{TokenURL: srv.URL, ClientID: "c"}
-	if _, err := tc.Exchange(context.Background(), minimalExchangeReq()); err != nil {
-		t.Fatalf("Exchange via interface: %v", err)
-	}
-	if _, err := tc.Refresh(context.Background(), RefreshRequest{RefreshToken: "rt"}); err != nil {
-		t.Fatalf("Refresh via interface: %v", err)
-	}
-}

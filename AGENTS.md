@@ -15,7 +15,7 @@ OAuth (RFC 8252) in CLI/native apps. Building blocks:
 - Callback / manual-paste race — `AwaitAuthCode` (`await.go`)
 - Token-endpoint primitives — `Client` (`TokenURL`, `ClientID`, …) with
   `Exchange` / `Refresh` methods, plus `ExchangeRequest`, `RefreshRequest`,
-  `Token`, `*TokenError`, `TokenClient` interface (`token.go`)
+  `Token`, `*TokenError` (`token.go`)
 - `Must*` panic-on-error wrappers (`*_must.go`)
 
 Plus shared types (`types.go`) — including the `Provider` interface, which

@@ -40,7 +40,7 @@ The pieces every native-app PKCE flow needs, and nothing else:
   Stateless: no auto-refresh, no goroutines, no storage. The provider-
   specific fields a non-trivial flow needs (`id_token`, account IDs,
   even non-standard top-level shapes) are preserved verbatim in
-  `Token.Raw`. The `TokenClient` interface lets callers swap in fakes.
+  `Token.Raw`.
 
 Plus a `Provider` interface that's a convention for assembling these into
 a provider-specific login flow. `pinoauth` ships **no concrete providers** —

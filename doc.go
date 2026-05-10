@@ -19,8 +19,7 @@
 //     (RFC 6749 §4.1.3) and [Client.Refresh] (RFC 6749 §6) methods.
 //     Returns a parsed [Token] whose [Token.Raw] map preserves every
 //     provider-specific field. Errors come back as [*TokenError]
-//     (RFC 6749 §5.2). The [TokenClient] interface lets callers swap
-//     in fakes without depending on the concrete type.
+//     (RFC 6749 §5.2).
 //
 // The [Provider] interface is a convention for assembling these pieces
 // into provider-specific login flows; pinoauth itself ships no concrete

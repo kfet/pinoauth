@@ -18,9 +18,6 @@ All notable changes to this project will be documented in this file.
       with just the grant-specific fields (`Code/CodeVerifier/
       RedirectURI/Extra` for exchange; `RefreshToken/Scope/Extra` for
       refresh).
-    - `TokenClient` — interface satisfied by `*Client`, exposing
-      `Exchange` and `Refresh`. Useful for testing and for callers
-      that want to wrap or swap the implementation.
   Migration: collapse the previous `ExchangeParams`/`RefreshParams`
   literals into a `Client{}` (set once, reuse for refresh) and a small
   `ExchangeRequest{}`/`RefreshRequest{}` per call. The seven common
