@@ -168,7 +168,22 @@ type Client struct {
 	// (RFC 8252) typically have no secret; leave empty in that case.
 	ClientSecret string
 	// HTTPClient overrides the default http.Client. When nil, an
-	// internal client with a 30 s timeout is used.
+	// internal client with a 30 s timeout and a CheckRedirect that
+	// refuses to follow is used (see [ErrRedirectNotAllowed]).
+	//
+	// SECURITY: a caller-supplied HTTPClient that does not configure
+	// CheckRedirect inherits Go's default behavior, which follows up
+	// to 10 redirects on POST. A redirect from the token endpoint
+	// would re-POST the request body — carrying client_secret,
+	// refresh_token, and code_verifier — to the redirect target. If
+	// you supply your own client (e.g. for a custom Transport),
+	// either set:
+	//
+	//	CheckRedirect: func(*http.Request, []*http.Request) error {
+	//	    return pinoauth.ErrRedirectNotAllowed
+	//	}
+	//
+	// or otherwise ensure the client refuses 30x on token requests.
 	HTTPClient *http.Client
 	// BodyEncoder overrides the default form encoding. See
 	// [JSONBodyEncoder].

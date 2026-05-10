@@ -45,12 +45,21 @@ All notable changes to this project will be documented in this file.
   `state` parameter (RFC 6749 §10.12). Closes the "bring your own RNG"
   footgun in the README quick-start.
 - GitHub Actions CI workflow that runs `make all` across Go
-  1.21/1.22/1.23 on linux/macos/windows. `make all` is now the single
+  1.21/1.22/1.23 on linux/macos. `make all` is now the single
   source of truth for the strict pass: race detector, shuffled order,
   fresh test cache, gofmt, go vet, staticcheck, and the 100% coverage
   gate. The previously separate `make test` target is gone — there is
   no "fast" mode in the Makefile any more (run `go test ./...` directly
   if you want to iterate).
+
+### Security
+
+- `Client.HTTPClient` doc now warns that a caller-supplied client must
+  configure `CheckRedirect` to refuse — Go's default follows up to 10
+  redirects on POST, which would re-send the token-request body
+  (carrying `client_secret`/`refresh_token`/`code_verifier`) to the
+  redirect target. The bundled default client already refuses; this
+  closes the documentation gap for the override path.
 
 ### Added (earlier in this cycle)
 
