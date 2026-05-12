@@ -13,9 +13,10 @@ import (
 //   - a bare query-string fragment containing code=…&state=…;
 //   - a bare authorization code (state will be empty).
 //
-// Shell-escape backslashes pasted from terminal output are removed when the
-// input shows shell-escape "tells" (e.g. \?, \&, \=); backslashes elsewhere
-// are preserved, since RFC 6749 §A.11 allows '\' inside VSCHAR codes.
+// Shell-escape backslashes pasted from terminal output are unescaped when
+// the input shows shell-escape "tells" (e.g. \?, \&, \=): then \\ becomes
+// \ and \X becomes X. Backslashes in inputs without those tells are
+// preserved, since RFC 6749 §A.11 allows '\' inside VSCHAR codes.
 // ParseAuthorizationInput does no validation beyond extraction; callers
 // must compare state against their expected value.
 func ParseAuthorizationInput(input string) (code, state string) {
@@ -58,7 +59,7 @@ func ParseAuthorizationInput(input string) (code, state string) {
 // shell-escaped, since these characters never appear after a literal '\'
 // in valid URL syntax.
 func hasShellEscapeTell(s string) bool {
-	for i := 0; i < len(s)-1; i++ {
+	for i := 0; i+1 < len(s); i++ {
 		if s[i] != '\\' {
 			continue
 		}
@@ -76,16 +77,15 @@ func shellUnescape(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	for i := 0; i < len(s); i++ {
-		if s[i] == '\\' && i+1 < len(s) {
+		if s[i] != '\\' {
+			b.WriteByte(s[i])
+			continue
+		}
+		// '\' — consume the next byte literally; drop if at end.
+		if i+1 < len(s) {
 			b.WriteByte(s[i+1])
 			i++
-			continue
 		}
-		if s[i] == '\\' {
-			// trailing backslash with nothing to escape; drop it
-			continue
-		}
-		b.WriteByte(s[i])
 	}
 	return b.String()
 }
