@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-12
+
+### Fixed
+
+- Retract `v0.2.0` and `v0.2.1`. Both were tagged-then-retagged during
+  the initial public release, leaving the Go module proxy serving
+  pre-fix content that doesn't match the corresponding git tags. The
+  code in `v0.2.2` is equivalent to the (corrected) `v0.2.1` git tag —
+  use `v0.2.2` or later.
+
 ## [0.2.1] - 2026-05-12
 
 ### Changed
