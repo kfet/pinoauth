@@ -1,10 +1,8 @@
 # pinoauth
 
-<!-- TODO(badges): once the GitHub repo is published, add:
-       - CI status:    ![CI](https://github.com/kfet/pinoauth/actions/workflows/test.yml/badge.svg)
-       - pkg.go.dev:   [![Go Reference](https://pkg.go.dev/badge/github.com/kfet/pinoauth.svg)](https://pkg.go.dev/github.com/kfet/pinoauth)
-       - Go report:    [![Go Report Card](https://goreportcard.com/badge/github.com/kfet/pinoauth)](https://goreportcard.com/report/github.com/kfet/pinoauth)
--->
+![CI](https://github.com/kfet/pinoauth/actions/workflows/test.yml/badge.svg)
+[![Go Reference](https://pkg.go.dev/badge/github.com/kfet/pinoauth.svg)](https://pkg.go.dev/github.com/kfet/pinoauth)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kfet/pinoauth)](https://goreportcard.com/report/github.com/kfet/pinoauth)
 
 A small, **stdlib-only** Go toolkit for browser-loopback OAuth 2.0 flows in
 CLI and desktop applications — i.e. [RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252)
