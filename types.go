@@ -18,6 +18,11 @@ type Prompt struct {
 type AuthInfo struct {
 	// URL is the authorization URL to open in a browser.
 	URL string
+	// ShortURL is an optional pre-shortened form of URL produced by
+	// the provider (e.g. via a public URL shortener that forwards
+	// click-time query params). Callers typically present it
+	// prominently and fall back to URL. Empty means no short form.
+	ShortURL string
 	// Instructions is human-readable guidance shown alongside URL.
 	Instructions string
 }

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-05-12
+
+### Added
+
+- `AuthInfo.ShortURL` — optional pre-shortened form of `URL` produced
+  by the provider (e.g. via a public URL shortener that forwards
+  click-time query params). Callers typically present it prominently
+  and fall back to `URL`. Empty means no short form. Zero-value
+  backwards compatible with v0.2.2.
+
 ## [0.2.2] - 2026-05-12
 
 ### Fixed
