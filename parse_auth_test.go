@@ -27,6 +27,18 @@ func TestParseAuthorizationInput(t *testing.T) {
 			`http://localhost:1455/auth/callback\?code\=ac_abc\&state\=xyz`,
 			"ac_abc", "xyz",
 		},
+		// Shell-escaped URL with a literal backslash in the code (\\ -> \)
+		{
+			`http://localhost:1455/cb\?code\=ab\\cd\&state\=xyz`,
+			`ab\cd`, "xyz",
+		},
+		// Bare code containing a backslash — no shell tells, preserve verbatim
+		// (RFC 6749 §A.11 VSCHAR allows '\').
+		{`ab\cd`, `ab\cd`, ""},
+		// code#state with a backslash in the code, no shell tells — preserved.
+		{`ab\cd#st`, `ab\cd`, "st"},
+		// Shell-escaped URL ending with a lone trailing backslash — dropped.
+		{`http://localhost:1455/cb\?code\=abc\&state\=xyz\`, "abc", "xyz"},
 	}
 	for _, tt := range tests {
 		code, state := ParseAuthorizationInput(tt.input)

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `ParseAuthorizationInput` no longer unconditionally strips backslashes.
+  It now detects shell-escape "tells" (a backslash followed by `?`, `&`,
+  `=`, `#`, or space) and only then performs a proper shell-unescape
+  (`\\` → `\`, `\X` → `X`). Inputs without those tells are left alone,
+  preserving backslashes that RFC 6749 §A.11 permits inside VSCHAR
+  authorization codes.
+
 ## [0.2.0] - 2026-05-09
 
 ### Changed (breaking)
