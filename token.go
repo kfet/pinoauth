@@ -206,12 +206,14 @@ type ExchangeRequest struct {
 	// RedirectURI must match the redirect_uri sent in the authorization
 	// request.
 	RedirectURI string
-	// Extra adds or overrides form fields on the request body. Useful
-	// for provider-specific knobs (e.g. an audience parameter). Values
-	// here override the standard fields when keys collide — including
-	// security-critical fields such as grant_type, client_id, code,
-	// code_verifier, and redirect_uri. Do not pipe untrusted input
-	// into Extra.
+	// Extra adds extra fields to the request body. Useful for
+	// provider-specific knobs (e.g. an audience parameter, or a
+	// non-standard "state" passthrough required by some token
+	// endpoints). Reserved keys that pinoauth owns —
+	// grant_type, client_id, client_secret, code, code_verifier,
+	// redirect_uri — cause [Client.Exchange] to return an error
+	// rather than silently overwriting; this prevents callers from
+	// piping untrusted input into security-critical fields.
 	Extra url.Values
 }
 
@@ -224,9 +226,45 @@ type RefreshRequest struct {
 	// Scope optionally narrows the granted scope on refresh
 	// (RFC 6749 §6 "scope"); leave empty to keep the original scope.
 	Scope string
-	// Extra adds or overrides form fields on the request body. See
-	// [ExchangeRequest.Extra] — same caveats apply.
+	// Extra adds extra fields to the request body. Reserved keys
+	// that pinoauth owns — grant_type, client_id, client_secret,
+	// refresh_token, scope — cause [Client.Refresh] to return an
+	// error rather than silently overwriting. See
+	// [ExchangeRequest.Extra].
 	Extra url.Values
+}
+
+// exchangeReservedKeys are the form fields owned by Client.Exchange.
+// Callers may not override them via ExchangeRequest.Extra.
+var exchangeReservedKeys = map[string]struct{}{
+	"grant_type":    {},
+	"client_id":     {},
+	"client_secret": {},
+	"code":          {},
+	"code_verifier": {},
+	"redirect_uri":  {},
+}
+
+// refreshReservedKeys are the form fields owned by Client.Refresh.
+// Callers may not override them via RefreshRequest.Extra.
+var refreshReservedKeys = map[string]struct{}{
+	"grant_type":    {},
+	"client_id":     {},
+	"client_secret": {},
+	"refresh_token": {},
+	"scope":         {},
+}
+
+// checkReservedExtra returns an error when extra contains any key
+// pinoauth owns for this grant. The error names the offending key so
+// the caller can fix the call site.
+func checkReservedExtra(extra url.Values, reserved map[string]struct{}, method string) error {
+	for k := range extra {
+		if _, bad := reserved[k]; bad {
+			return fmt.Errorf("pinoauth: Client.%s: Extra must not override reserved key %q", method, k)
+		}
+	}
+	return nil
 }
 
 // Exchange performs an authorization-code grant (RFC 6749 §4.1.3) with
@@ -249,6 +287,10 @@ func (c *Client) Exchange(ctx context.Context, req ExchangeRequest) (*Token, err
 	}
 	if req.RedirectURI == "" {
 		return nil, errors.New("pinoauth: Client.Exchange: RedirectURI is required")
+	}
+
+	if err := checkReservedExtra(req.Extra, exchangeReservedKeys, "Exchange"); err != nil {
+		return nil, err
 	}
 
 	values := url.Values{}
@@ -283,6 +325,9 @@ func (c *Client) Refresh(ctx context.Context, req RefreshRequest) (*Token, error
 	}
 	if req.RefreshToken == "" {
 		return nil, errors.New("pinoauth: Client.Refresh: RefreshToken is required")
+	}
+	if err := checkReservedExtra(req.Extra, refreshReservedKeys, "Refresh"); err != nil {
+		return nil, err
 	}
 
 	values := url.Values{}

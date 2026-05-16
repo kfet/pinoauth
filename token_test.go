@@ -163,7 +163,7 @@ func TestClient_Exchange_JSONBody(t *testing.T) {
 	}
 }
 
-func TestClient_Exchange_ExtraFieldsOverride(t *testing.T) {
+func TestClient_Exchange_ExtraNonReservedFields(t *testing.T) {
 	var captured url.Values
 	es := &echoServer{
 		t:              t,
@@ -177,8 +177,8 @@ func TestClient_Exchange_ExtraFieldsOverride(t *testing.T) {
 	_, err := c.Exchange(context.Background(), ExchangeRequest{
 		Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
 		Extra: url.Values{
-			"audience":  {"my-aud"},
-			"client_id": {"override"},
+			"audience": {"my-aud"},
+			"state":    {"abc123"},
 		},
 	})
 	if err != nil {
@@ -187,8 +187,70 @@ func TestClient_Exchange_ExtraFieldsOverride(t *testing.T) {
 	if captured.Get("audience") != "my-aud" {
 		t.Errorf("audience=%q", captured.Get("audience"))
 	}
-	if captured.Get("client_id") != "override" {
-		t.Errorf("client_id should be overridden, got %q", captured.Get("client_id"))
+	if captured.Get("state") != "abc123" {
+		t.Errorf("state=%q", captured.Get("state"))
+	}
+	if captured.Get("client_id") != "cid" {
+		t.Errorf("client_id should be untouched, got %q", captured.Get("client_id"))
+	}
+}
+
+func TestClient_Exchange_ExtraReservedKeyRejected(t *testing.T) {
+	c := &Client{TokenURL: "http://x", ClientID: "cid"}
+	for _, k := range []string{"grant_type", "client_id", "client_secret", "code", "code_verifier", "redirect_uri"} {
+		_, err := c.Exchange(context.Background(), ExchangeRequest{
+			Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
+			Extra: url.Values{k: {"x"}},
+		})
+		if err == nil {
+			t.Errorf("key %q: expected error, got nil", k)
+			continue
+		}
+		if !strings.Contains(err.Error(), k) {
+			t.Errorf("key %q: error %q does not name the key", k, err.Error())
+		}
+	}
+}
+
+func TestClient_Exchange_ExtraInJSONBody(t *testing.T) {
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"access_token":"AT"}`)
+	}))
+	defer srv.Close()
+	c := &Client{TokenURL: srv.URL, ClientID: "cid", BodyEncoder: JSONBodyEncoder}
+	_, err := c.Exchange(context.Background(), ExchangeRequest{
+		Code: "C", CodeVerifier: "V", RedirectURI: "http://x/cb",
+		Extra: url.Values{"state": {"S123"}},
+	})
+	if err != nil {
+		t.Fatalf("Exchange: %v", err)
+	}
+	var parsed map[string]string
+	if err := json.Unmarshal(gotBody, &parsed); err != nil {
+		t.Fatalf("body not JSON: %v: %s", err, gotBody)
+	}
+	if parsed["state"] != "S123" {
+		t.Errorf("state in JSON body=%q want S123 (body=%s)", parsed["state"], gotBody)
+	}
+}
+
+func TestClient_Refresh_ExtraReservedKeyRejected(t *testing.T) {
+	c := &Client{TokenURL: "http://x", ClientID: "cid"}
+	for _, k := range []string{"grant_type", "client_id", "client_secret", "refresh_token", "scope"} {
+		_, err := c.Refresh(context.Background(), RefreshRequest{
+			RefreshToken: "rt",
+			Extra:        url.Values{k: {"x"}},
+		})
+		if err == nil {
+			t.Errorf("key %q: expected error, got nil", k)
+			continue
+		}
+		if !strings.Contains(err.Error(), k) {
+			t.Errorf("key %q: error %q does not name the key", k, err.Error())
+		}
 	}
 }
 

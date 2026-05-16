@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-16
+
+### Changed
+
+- **Breaking:** `ExchangeRequest.Extra` and `RefreshRequest.Extra` no
+  longer silently overwrite the form fields pinoauth owns. Passing any
+  of `grant_type`, `client_id`, `client_secret`, `code`, `code_verifier`,
+  `redirect_uri` (Exchange) or `grant_type`, `client_id`,
+  `client_secret`, `refresh_token`, `scope` (Refresh) via `Extra` now
+  returns a validation error naming the offending key, rather than
+  letting untrusted input override security-critical fields. Callers
+  that legitimately need to vary those fields should set the dedicated
+  `ExchangeRequest` / `RefreshRequest` / `Client` fields instead.
+
+### Added
+
+- `Extra` is now the supported way to inject non-standard token-body
+  fields some providers require (e.g. Anthropic's `state` echo). Form
+  and JSON (`JSONBodyEncoder`) bodies both carry the extra fields.
+
 ## [0.2.3] - 2026-05-12
 
 ### Added
